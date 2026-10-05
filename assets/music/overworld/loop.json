@@ -1,0 +1,30 @@
+{
+ "title": "Hilltop Bounce",
+ "bpm": 104,
+ "beats": 96,
+ "samples": 2658462,
+ "rate": 48000,
+ "stems": [
+  "lead",
+  "bass",
+  "perc",
+  "bells",
+  "fast",
+  "arp",
+  "bah"
+ ],
+ "bah_beats": [
+  7.5,
+  15.5,
+  23.5,
+  28.0,
+  39.5,
+  47.5,
+  55.5,
+  60.0,
+  71.5,
+  79.5,
+  87.5,
+  94.0
+ ]
+}

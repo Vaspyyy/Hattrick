@@ -6,3 +6,5 @@
 __pycache__/
 # downloaded instruments (see audio/fetch_instruments.py); their licenses are kept
 /assets/instruments/
+# listening previews (regenerate with: python3 audio/build.py preview)
+/assets/preview/

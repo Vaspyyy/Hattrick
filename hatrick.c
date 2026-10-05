@@ -200,7 +200,9 @@ static void hero(int k, int pr) {
   wall = 0;
   if (!gnd) wall = scan(X+6, Y+1, 1, 9, SOLID) ? 1 : scan(X-1, Y+1, 1, 9, SOLID) ? -1 : 0;
   while (scan(X, Y, 6, 11, 64)) { map[hty][htx] = 0; coins++; sfx(7); }
-  if (scan(X-1, Y-1, 8, 13, 8) || Y > MH*8+8) die();
+  // Spikes: touching one face counts, but the corners are forgiven (sides along the middle of the
+  // body, top and bottom across the middle 4 px), so grazes and one-pixel toe overlaps survive.
+  if (scan(X-1, Y+2, 8, 8, 8) || scan(X+1, Y-1, 4, 13, 8) || Y > MH*8+8) die();
   // The pole counts at any height above its base, so jumping over the flag still wins.
   if (X+6 > gx*8+2 && X < gx*8+6 && Y < gb && st < DEAD) { st = WIN; stt = 0; hvx = hvy = 0; hx = gx*8-3 << 8; sfx(6); rumble(8); }   // grab the pole
 }
