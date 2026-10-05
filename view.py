@@ -19,7 +19,7 @@ x0, x1 = (int(sys.argv[4]), int(sys.argv[5])) if len(sys.argv) > 5 else (0, w)
 S = 2
 COL = {"#": (168, 100, 44), "B": (208, 96, 42), "^": (224, 230, 238), "S": (144, 152, 168), "T": (232, 64, 58),
        "o": (255, 216, 74), "g": (154, 72, 208), "b": (255, 210, 60), "h": (255, 150, 60), "@": (255, 122, 28),
-       "F": (46, 200, 90)}
+       "F": (46, 200, 90), "/": (139, 224, 90), "\\": (139, 224, 90)}
 im = Image.new("RGB", ((x1 - x0) * 8 * S, 256 * S), (74, 160, 255))
 d = ImageDraw.Draw(im)
 for i in range(x0, x1):
@@ -33,10 +33,11 @@ for y in range(32):
             r = [((x - x0) * 8) * S, y * 8 * S, ((x - x0) * 8 + 7) * S, (y * 8 + 7) * S]
             if c in "ogbh@F": d.ellipse(r, COL[c])
             elif c == "^": d.polygon([(r[0], r[3]), ((r[0] + r[2]) // 2, r[1]), (r[2], r[3])], COL[c])
+            elif c in "/\\": d.polygon([(r[0], r[3]), (r[2], r[3]), (r[2] if c == "/" else r[0], r[1])], COL[c])
             else: d.rectangle(r, COL[c])
 res = subprocess.run(["./sim", str(lvl), tas, "trace"], capture_output=True, text=True).stdout
 STC = [(255, 255, 255), (0, 255, 255), (255, 0, 255), (255, 0, 255), (255, 0, 255), (255, 255, 0), (255, 255, 0),
-       (255, 0, 0), (0, 255, 0)]
+       (255, 160, 0), (160, 160, 255), (100, 240, 200), (240, 200, 120), (200, 240, 120), (255, 0, 0), (0, 255, 0)]
 last = None
 for l in res.splitlines():
     f = l.split()

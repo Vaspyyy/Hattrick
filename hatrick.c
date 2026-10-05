@@ -1,7 +1,11 @@
 // Hatrick: a tiny cap-throwing platformer for Linux/X11 (i386, no libc).
-// Arrows move, Z/Y or Space jumps, X throws the cap, Down crouches / ground pounds.
+// Arrows move, Z/Y or Space jumps, X/C throws the cap, Down crouches / ground pounds.
+// Down + cap rolls on the ground; Down + X dives in the air. Up + jump spins,
+// Up + cap throws upward, Down + C throws downward in the air.
 // Gamepads use the Super Mario Odyssey layout (see padkeys).
-// R restarts the level (or the whole run once finished), M mutes, Esc quits.
+// F1 opens the movement playground. Up spins on the ground; C recalls an out cap.
+// R restarts the level, M mutes, Esc opens the destination menu / resumes.
+// Enter or Jump chooses a destination; Q quits. Controller Start opens the menu.
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include "gfx.h"
@@ -17,25 +21,46 @@ typedef unsigned u32;
 #endif
 #define MW 256          // map size in 8 px tiles
 #define MH 32
-#define SOLID 0x3E      // tile types 1..5 block movement
-// Tiles: 1 ground, 2 brick, 3 spikes, 4 stone, 5 spring, 6 coin.
+#define SOLID 0x33E      // full tiles 1..5 and triangular slopes 8..9 block movement
+// Tiles: 1 ground, 2 brick, 3 spikes, 4 stone, 5 spring, 6 coin, 8/9 slopes.
 // Physics is fixed point, 1/256 px, 60 steps per second.
 #define GRAV 48
 #define MAXV 400
 #define ACC 18
 #define AACC 14
-#define FRIC 24
-enum { NORM, LONGJ, GPWIND, GPSLAM, GPLAND, DIVE, SLIDE, DEAD, WIN };
+#define FRIC (MAXV/10)  // Odyssey NormalBrakeFrame: 10; scaled to this game's run speed
+#define CAPSTALL 8       // first air throw pauses vertical motion for 8 frames
+#define CAP2 256         // keep the two cap buttons distinct until press edges are read
+#define ANALOG 512       // signed stick axis, biased by 256, in bits 10..19
+#define ROLLSTART (MAXV*20/14)
+#define ROLLMAX (MAXV*35/14)
+#define ROLLBOOST (MAXV*6/14)
+#define TRIPLE_V 1220
+#define CAPBOUNCE_V 768
+#define CAPVAULT_V (CAPBOUNCE_V*32/26)
+#define PRACTICE (1<<20)
+#define BACK (1<<21)
+#define START (1<<22)
+#define QUIT (1<<23)
+#define MENUBACK (1<<24)
+#define MENUN (NLV+1)
+#define GPJUMP_V 1400
+enum { NORM, LONGJ, GPWIND, GPSLAM, GPLAND, DIVE, SLIDE, ROLL, SPINJ, GSPIN, HANG, CLIMB, DEAD, WIN };
+enum { CAPFORWARD, CAPUP, CAPDOWN, CAPSPIN };
 
 static u8 map[MH][MW];
 static u32 big[H*SC][W*SC];   // the window image; the world is drawn straight into it at sub-pixel positions
 static int lw, gx, gy, gb;   // level width, flag column / top row, pixel row where the pole meets the ground
 static int hx, hy, hvx, hvy, face, st, stt, gnd, jn, landt, capok, diveok, stall, wall, coy, jbuf, lock, spin, cut, skid;
-static int cst, cxp, cyp, cvx, ct;
+static int cst, cxp, cyp, cvx, cvy, ct, cready, ckind, throwt, oldhy;
+static int duck, catcht, catchok, twirl, gpspin, rollbuf;
+static int arcg, runt, rundir, launch, boostt, capbuf, capkeys, capextend, capreflect;
+static int ledget, climbx, climby, slopedir, poundt;
 static int lvl, deaths, coins, lcoins, tim, shake, done, prevk, fr, capless, capoff;
+static int menu, menusel, menufr, menunav, menurepeat, resumable, quitting;
 // Presentation only (never read by the game logic): camera, flips, squash and stretch.
 static int cxf, cyf, look, camgy;          // camera position and look-ahead in 1/256 px, last standing height
-static int spinlen, spind, sqv, turnt, lface, runph, vang, pgnd, pvy, dustt;
+static int spinlen, spind, sqv, turnt, lface, runph, vang, pgnd, pvy, dustt, rollph;
 static volatile u8 *shm;  // audio process mailbox: [0] sfx counter, [1] sfx id, [2] mute
 typedef struct { int x, y, vx, vy, t, a, h; } E;
 static E en[48];
@@ -48,6 +73,18 @@ static int htx, hty;
 
 static int rnd(int n) { seed = seed*1103515245 + 12345; return (seed >> 16) % n; }
 static int iabs(int v) { return v < 0 ? -v : v; }
+static int brake(int v, int amount) { return v > amount ? v-amount : v < -amount ? v+amount : 0; }
+// Keyboard / D-pad takes priority; otherwise use the full stick range after its dead zone.
+static int moveaxis(int k) {
+  return k & 3 ? ((k >> 1 & 1) - (k & 1))*256 : k & ANALOG ? ((k >> 10) & 1023)-256 : 0;
+}
+static int stickaxis(int x, int mid, int range, int dz) {
+  int v = x-mid, a = iabs(v);
+  if (a <= dz || range <= dz) return 0;
+  a = (a-dz)*256/(range-dz);
+  if (a > 256) a = 256;
+  return v < 0 ? -a : a;
+}
 static void sfx(int i) { if (shm) { shm[1] = i; shm[0]++; } }
 // Controller rumble: 1 cap bounce / wall jump, 2 hard landing, 3 brick, 4 stomp, 5 spring,
 // 6 ground-pound landing, 7 death, 8 goal. The strongest request in a frame is played.
@@ -60,12 +97,65 @@ static int scan(int x, int y, int w, int h, int m) {
   for (int ty = y >> 3; ty <= (y+h-1) >> 3; ty++)
     for (int tx = x >> 3; tx <= (x+w-1) >> 3; tx++) {
       int t = tile(tx, ty);
-      if (m >> t & 1) { htx = tx; hty = ty; return t; }
+      if (m >> t & 1) {
+        if (t == 8 || t == 9) {
+          int a = x > tx*8 ? x-tx*8 : 0, b = x+w-1 < tx*8+7 ? x+w-1-tx*8 : 7;
+          int bottom = y+h-1 < ty*8+7 ? y+h-1-ty*8 : 7;
+          if (bottom < (t == 8 ? 7-b : a)) continue;
+        }
+        htx = tx; hty = ty; return t;
+      }
     }
   return 0;
 }
 static int ov(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
   return ax < bx+bw && bx < ax+aw && ay < by+bh && by < ay+ah;
+}
+// Surface under the whole foot: ramps have the same occupied pixels as their art.
+static int floorat(int x, int feet, int *slope) {
+  int best = MH*8+99; *slope = 0;
+  for (int px = x; px < x+6; px++) for (int ty = (feet-4)>>3; ty <= (feet+5)>>3; ty++) {
+    int t = tile(px>>3, ty), y = ty*8;
+    if (!(SOLID >> t & 1)) continue;
+    if (t == 8 || t == 9) y += t == 8 ? 7-(px&7) : px&7;
+    if (y >= feet-4 && y <= feet+5 && y < best) { best = y; *slope = t == 8 ? -1 : t == 9 ? 1 : 0; }
+  }
+  return best;
+}
+static int freemove(void) { return st == NORM || st == LONGJ || st == SPINJ; }
+// hy always keeps the standing body's top, so shrinking leaves the feet in place.
+static void posture(int want) {
+  if (want) duck = want;
+  else if (!scan(hx >> 8, hy >> 8, 6, 11, SOLID)) duck = 0;
+}
+static void roll(int speed) {
+  if (face*hvx < speed) hvx = face*speed;
+  st = ROLL; stt = 0; boostt = 15; arcg = GRAV; posture(5); spin = throwt = 0; cut = 0; rollbuf = capbuf = poundt = 0;
+}
+static void longjump(void) {
+  st = LONGJ; if (face*hvx < 700) hvx = face*700;
+  hvy = -560; posture(0); cut = spin = 0; gnd = 0; coy = 99; jn = -1; launch = 0;
+}
+static void capthrow(int k, int downthrow, int rolling, int takeoff) {
+  ckind = k & 4 ? CAPUP : downthrow || st == GPLAND ? CAPDOWN : st == SPINJ || st == GSPIN ? CAPSPIN : CAPFORWARD;
+  cst = 1; ct = cready = capextend = capreflect = 0; cvx = cvy = 0;
+  cxp = hx - 256 + face*(9 << 8); cyp = hy + (duck+3)*256;
+  if (ckind == CAPUP) cxp = hx + 256, cyp = hy + (duck-6)*256, cvy = -1100;
+  else if (downthrow) cxp = hx + 256, cyp = hy + (13 << 8), cvy = 1100;
+  else if (ckind != CAPSPIN) cvx = face*1100;
+  if ((ckind == CAPDOWN && gnd) || rolling) cyp = hy + (7 << 8);
+  capreflect = rolling;
+  for (int i = 0; i < 16 && scan(cxp >> 8, cyp >> 8, 8, 4, SOLID); i++) {
+    if (cvy) cyp -= cvy > 0 ? 256 : -256;
+    else cxp -= face*256;
+  }
+  if (scan(cxp >> 8, cyp >> 8, 8, 4, SOLID)) cst = 3;
+  if (!gnd && st != SPINJ) {
+    st = NORM; spin = cut = 0;
+    // Preserve an actual jump launch; a same-frame throw must not pin it to the floor.
+    if (stall && !takeoff) stall = 0, throwt = CAPSTALL;
+  }
+  sfx(2);
 }
 static P *part(int x, int y, int vx, int vy, int l, int g, u32 c) {   // x, y in 1/256 px
   for (P *p = pt; p < pt+NP; p++)
@@ -90,138 +180,299 @@ static void load(void) {
   for (p += 2;; p += 4) {
     int x = p[0], y = p[1] & 31, t = p[1] >> 5, w = p[2], h = p[3];
     if (!t) { gx = x; gy = y; lw = w; break; }
+    if (t == 7 && !h) { map[y][x] = w; continue; }
     if (t == 7) { E *e = en + ne++; e->x = x << 11; e->y = e->h = y << 11; e->vx = -100; e->vy = 0; e->t = w; e->a = 1; continue; }
     for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) map[y+j][x+i] = t;
   }
   for (gb = gy*8; gb < MH*8 && !scan(gx*8+3, gb, 1, 1, SOLID); gb++);
-  hvx = hvy = st = stt = jn = cst = lock = spin = skid = fr = gnd = jbuf = coy = wall = cut = capok = diveok = stall = 0;
-  face = lface = 1; landt = 99; coins = lcoins;
-  cxf = hx - (W/2 - 3 << 8); cyf = hy - (H*5/8 << 8); look = 0; camgy = hy; sqv = turnt = vang = pgnd = pvy = 0;
+  hvx = hvy = st = stt = jn = cst = lock = spin = skid = fr = gnd = jbuf = coy = wall = cut = capok = diveok = stall = cready = throwt = 0;
+  duck = catcht = catchok = twirl = gpspin = rollbuf = cvy = ckind = 0;
+  arcg = GRAV; runt = rundir = launch = boostt = capbuf = capkeys = capextend = capreflect = 0;
+  ledget = climbx = climby = slopedir = poundt = 0;
+  jn = -1; face = lface = 1; landt = 99; coins = lcoins;
+  cxf = hx - (W/2 - 3 << 8); cyf = hy - (H*5/8 << 8); look = 0; camgy = hy; sqv = turnt = vang = pgnd = pvy = rollph = 0;
 }
 
 static void hero(int k, int pr) {
-  int dir = (k >> 1 & 1) - (k & 1), D = k >> 3 & 1, g = GRAV, X, Y, t;
+  int axis = moveaxis(k), dir = axis > 0 ? 1 : axis < 0 ? -1 : 0;
+  int target = iabs(axis)*MAXV/256, D = k >> 3 & 1, U = k >> 2 & 1, g = GRAV, X, Y;
+  int takeoff = 0, rollcancel = st == ROLL && !D;
+  int cappress = pr & 32, downthrow = D && (pr & CAP2) && !(prevk & 32);
   if (st == DEAD) { hvy += GRAV; hy += hvy; if (++stt > 60) load(); return; }
   if (st == WIN) {
     hvx = 0; if (!scan(hx >> 8, (hy >> 8)+1, 6, 11, SOLID)) hy += 256;
-    if (++stt == 90) { if (lvl < NLV-1) { lvl++; lcoins = coins; load(); } else done = 1; }
+    if (++stt == 90) { if (lvl >= NLV) load(); else if (lvl < NLV-1) { lvl++; lcoins = coins; load(); } else done = 1; }
+    return;
+  }
+  if (ledget) ledget--;
+  if (st == HANG) {
+    hvx = hvy = 0;
+    if (pr & 8 || dir == -face) { st = NORM; ledget = 15; coy = 99; pr &= ~8; }
+    else if (pr & (4|16)) {
+      if (!scan(climbx>>8, climby>>8, 6, 11, SOLID)) st = CLIMB, stt = 0;
+    }
+    if (st == HANG) return;
+  }
+  if (st == CLIMB) {
+    hvx = hvy = 0;
+    hx += (climbx-hx)/(12-stt); hy += (climby-hy)/(12-stt);
+    if (++stt == 12) { hx = climbx; hy = climby; st = NORM; gnd = 1; coy = landt = 0; }
     return;
   }
   if (lock) lock--, dir = 0;
+  if (runt) runt--;
+  if (launch) launch--;
+  if (boostt) boostt--;
+  if (capbuf) capbuf--;
+  if (poundt) poundt--;
+  if (gnd && !D && dir && dir*hvx >= 150) runt = 10, rundir = dir;
+  if (cappress && (!D || downthrow)) {
+    if (!cst || (cst == 3 && !(pr & CAP2))) capbuf = 10, capkeys = k & (4|8|CAP2);
+  }
+  if (gnd && pr & 4 && !(pr & 16) && (st == NORM || st == GSPIN)) st = GSPIN, stt = 0;
+  if (!gnd && launch && pr & 8 && !(k & 32) && (dir || runt)) {
+    if (dir) face = dir; else face = rundir;
+    longjump(); takeoff = 1;
+  }
   jbuf = pr & 16 ? 6 : jbuf ? jbuf-1 : 0;
-  if (gnd) coy = 0, capok = diveok = stall = 1; else coy++;
+  if (gnd) arcg = GRAV, coy = 0, capok = diveok = stall = catchok = 1, throwt = twirl = 0; else coy++;
   if (landt < 99) landt++;
   if (spin) spin--;
   if (skid) skid--;
+  if (catcht) catcht--;
+  if (twirl) twirl--;
+  if (rollbuf) rollbuf--;
+  if ((st == GPWIND || st == GPSLAM || st == GPLAND) && D && cappress) rollbuf = 6;
 
-  if (st == GPWIND) { hvx = hvy = g = 0; if (++stt > 14) st = GPSLAM; }
+  if (st == GPWIND) { posture(4); hvx = hvy = g = 0; if (++stt > 14) st = GPSLAM; }
   else if (st == GPSLAM) { hvx = g = 0; hvy = 1400; }
   else if (st == GPLAND) {
-    hvx = 0;
-    if (jbuf) { jbuf = 0; hvy = -1290; st = NORM; SPIN(36, face); cut = 0; gnd = 0; sfx(1); }
-    else if (++stt > 12) st = NORM;
-  } else if (st == SLIDE) {
-    hvx -= hvx > 0 ? 14 : -14;
-    if (iabs(hvx) < 100) st = NORM, hvx = 0;
-    if (jbuf) { jbuf = 0; st = NORM; hvy = -760; cut = 0; gnd = 0; sfx(1); }
-  } else if (st != DIVE) {
-    if (gnd) {
-      st = NORM;
-      if (dir && !D) {
-        if (dir*hvx < 0) { if (dir*hvx < -150) skid = 8; hvx += dir*36; }
-        else if (dir*hvx < MAXV) hvx += dir*ACC;
-        else if (dir*hvx > MAXV+12) hvx -= dir*12;   // extra speed from long jumps and dives eases off
-        face = dir;
-      } else hvx = hvx > FRIC ? hvx-FRIC : hvx < -FRIC ? hvx+FRIC : 0;
-    } else if (st == NORM && dir) { if (dir*hvx < MAXV) hvx += dir*AACC; face = dir; }
+    hvx = 0; stt++;
+    if (rollbuf) roll(gpspin ? MAXV*30/14 : ROLLSTART);
+    else if (jbuf && stt >= 5) {
+      jbuf = 0; hvy = -GPJUMP_V; st = NORM; posture(0); SPIN(40, face);
+      cut = 0; gnd = 0; coy = 99; jn = -1; launch = 0; poundt = 0; takeoff = 1; sfx(1);
+    } else if (stt >= 30 || (stt >= 24 && dir)) st = NORM;
+  } else if (st == ROLL) {
+    posture(5);
+    if (D && cappress && !boostt) {
+      boostt = 15; int speed = iabs(hvx)+ROLLBOOST;
+      hvx = face*(speed > ROLLMAX ? ROLLMAX : speed); sfx(2);
+    }
+    if (gnd) hvx = D ? hvx*998/1000 : brake(hvx, FRIC);
     if (jbuf && coy < 6) {
-      jbuf = 0; coy = 99; cut = 1; spin = 0; gnd = 0;
-      if (D && iabs(hvx) > 150) { st = LONGJ; hvx = face*700; hvy = -560; cut = 0; }
-      else if (D) { hvy = -1300; hvx = -face*200; SPIN(40, -face); cut = 0; }                // backflip
-      else if (skid && dir) { face = dir; hvx = dir*260; hvy = -1250; SPIN(40, dir); cut = 0; } // side flip
+      jbuf = 0;
+      if (rollcancel && cappress) { st = NORM; hvy = -870; posture(0); gnd = 0; coy = 99; cut = 1; jn = 0; launch = 6; }
+      else longjump();
+      takeoff = 1; sfx(1);
+    } else if (!D) st = NORM, posture(0);
+  } else if (st == GSPIN) {
+    posture(0); hvx = hvx*95/100;
+    target = iabs(hvx) > MAXV*8/14 ? iabs(hvx) : MAXV*8/14;
+    if (dir) { hvx += axis*AACC/256; if (iabs(hvx) > target) hvx = (hvx > 0 ? 1 : -1)*target; face = dir; }
+    if (jbuf && coy < 6) { jbuf = 0; st = SPINJ; hvy = -560; cut = launch = 0; gnd = 0; coy = 99; jn = -1; takeoff = 1; }
+    else if (++stt >= 90 || D || !gnd) st = NORM;
+  } else if (st == SLIDE) {
+    posture(5);
+    if (gnd && D) roll(iabs(hvx) > ROLLSTART ? iabs(hvx) : ROLLSTART);
+    else {
+      hvx = brake(hvx, FRIC);
+      if (iabs(hvx) < 100) st = NORM, hvx = 0, posture(0);
+      else if (gnd && dir) { st = NORM; posture(0); } // directional input regains ground control
+      if (jbuf && gnd) { jbuf = 0; st = NORM; hvy = -760; posture(0); cut = 0; gnd = 0; coy = 99; sfx(1); }
+    }
+  } else if (st != DIVE) {
+    posture(gnd && D ? 4 : 0);
+    if (gnd) {
+      st = NORM; gpspin = 0;
+      if (D) target = iabs(axis)*128/256;
+      if (dir) {
+        if (dir*hvx < 0) { if (!D && dir*hvx < -150) skid = 8; hvx += dir*FRIC; }
+        else if (dir*hvx < target) { hvx += dir*ACC; if (dir*hvx > target) hvx = dir*target; }
+        else if (dir*hvx > target) {
+          hvx -= dir*(D ? FRIC : 12); if (dir*hvx < target) hvx = dir*target;
+        }
+        face = dir;
+      } else hvx = brake(hvx, FRIC);
+    } else if ((st == NORM || st == SPINJ) && dir) {
+      if (dir*hvx < target) { hvx += dir*(dir*hvx < 0 ? AACC*2 : AACC); if (target < MAXV && dir*hvx > target) hvx = dir*target; }
+      face = dir;
+    }
+    if (jbuf && coy < 6) {
+      jbuf = 0; coy = 99; cut = 1; spin = 0; gnd = 0; posture(0); takeoff = 1; launch = 6;
+      if (poundt && !D && !U) { hvy = -GPJUMP_V; cut = 0; poundt = 0; jn = -1; SPIN(40, face); }
+      else if (U) { st = SPINJ; hvy = -560; jn = -1; cut = 0; launch = 0; }
+      else if (D && (dir || runt || iabs(hvx) > 150)) { if (dir) face = dir; else if (runt) face = rundir; longjump(); }
+      else if (D) { hvy = -1060; arcg = 32; hvx = -face*200; SPIN(40, -face); jn = -1; cut = launch = 0; }
+      else if (skid && dir) { face = dir; hvx = dir*260; hvy = -1020; arcg = 32; SPIN(40, dir); jn = -1; cut = launch = 0; }
+      else if (catcht) { hvy = -900; arcg = 42; catcht = 0; jn = -1; }
       else {
-        jn = landt < 8 && jn < 2 && iabs(hvx) > 200 ? jn+1 : 0;  // double / triple jump chain
-        hvy = jn == 2 ? -1240 : jn ? -1030 : -870;
-        if (jn == 2) SPIN(40, face);
+        // A stationary double is valid; only the third jump needs forward speed.
+        jn = landt <= 10 && jn >= 0 && jn < 2 && (jn == 0 || face*hvx > 200) ? jn+1 : 0;
+        hvy = jn == 2 ? -TRIPLE_V : jn ? -1030 : -870;
+        if (jn == 2) { SPIN(44, face); arcg = 32; cut = launch = 0; }
       }
       sfx(1);
     } else if (jbuf && wall && !gnd) {
-      jbuf = 0; hvx = -wall*440; hvy = -900; face = -wall; lock = 7; cut = 1; jn = 0; spin = 0;
-      st = NORM; capok = diveok = stall = 1; sfx(1); rumble(1);
-    } else if (pr & 8 && !gnd) { st = GPWIND; stt = 0; SPIN(14, face); }
-  }
-  if (pr & 32) {
-    if (D && diveok && st != DIVE && st != SLIDE && st < GPSLAM && (!gnd || iabs(hvx) > 150)) {
-      st = DIVE; hvx = face*760; hvy = gnd ? -560 : -420; diveok = 0; gnd = 0; spin = 0; sfx(2);
-    } else if (!D && !cst && st <= LONGJ) {
-      cst = 1; cxp = hx + face*512 - 256; cyp = hy + 768; cvx = face*1100; ct = 0;
-      if (!gnd && stall) { stall = 0; if (hvy > -280) hvy = -280; }
-      sfx(2);
+      jbuf = 0; hvx = -wall*440; hvy = -900; face = -wall; lock = 7; cut = 1; jn = -1; spin = 0;
+      st = NORM; arcg = GRAV; launch = 0; posture(0); capok = diveok = stall = catchok = 1; throwt = twirl = 0; sfx(1); rumble(1);
+    } else if (jbuf && catcht && catchok && !gnd) {
+      jbuf = catcht = catchok = 0; st = NORM; spin = cut = 0;
+      hvy = -320; arcg = 26; throwt = 0; twirl = 10; stall = 1; launch = 0; sfx(1);
+    } else if (!takeoff && pr & 8 && !gnd && !(k & 32)) {
+      gpspin = st == SPINJ; st = GPWIND; stt = 0; throwt = twirl = 0; SPIN(14, face);
     }
   }
+  if (cappress || (pr & 8 && k & 32)) {
+    if (gnd && D && (st == NORM || st == SLIDE)) {
+      roll(ROLLSTART); sfx(2);
+    } else if (D && !downthrow && diveok && !gnd && !(st == GPSLAM && scan(hx>>8, (hy>>8)+11, 6, 7, SOLID)) && (freemove() || st == GPWIND || st == GPSLAM)) {
+      st = DIVE; posture(0);
+      if (face*hvx < 760) hvx = face*760;
+      if (hvy > -420) hvy = -420;
+      g = arcg = GRAV; launch = capbuf = 0; diveok = 0; spin = throwt = twirl = cut = 0; sfx(2);
+    } else if (cappress && cst && cst < 3 && (!D || downthrow)) {
+      if (pr & CAP2) cst = 3; // the second throw button explicitly recalls the cap
+      else if (!capextend && ckind != CAPSPIN) {
+        // One append throw per flight. Aim at the nearest enemy in front, or extend forward.
+        int dx = cvy ? 0 : face*1100, dy = cvy ? (cvy > 0 ? 1100 : -1100) : 0, best = 64*64;
+        for (E *e = en; e < en+ne; e++) if (e->a) {
+          int ex = (e->x-cxp)>>8, ey = (e->y-cyp)>>8, d = ex*ex+ey*ey;
+          if (d < best && ex*face >= -4) { best = d; int scale = iabs(ex)>iabs(ey) ? iabs(ex) : iabs(ey); if (scale) dx = ex*1100/scale, dy = ey*1100/scale; }
+        }
+        cvx = dx; cvy = dy; cst = 1; ct = 0; capextend = 1;
+      }
+    }
+  }
+  if (capbuf && !cst && (freemove() || st == GSPIN || (st == GPLAND && !D))) {
+    int ck = capkeys; capbuf = 0;
+    capthrow(ck, (ck & (8|CAP2)) == (8|CAP2), rollcancel, takeoff);
+  }
+  // Odyssey gives both long jumps and dives a 0.5 u/frame counter-input brake.
+  // Scale that like AACC (0.5), while retaining the 2.5 u/frame forward minimum.
+  if ((st == LONGJ || st == DIVE) && dir*hvx < 0) {
+    int minimum = MAXV*5/28, speed = iabs(hvx)-AACC;
+    hvx = (hvx > 0 ? 1 : -1)*(speed < minimum ? minimum : speed);
+  }
+  if (st == NORM) g = arcg;
   if (st == LONGJ) g = 34;
-  if (hvy < 0 && cut && !(k & 16)) g *= 2;                                  // short hop when jump is released
-  else if (st == NORM && k & 16 && hvy > -200 && hvy < 200) g = g*5/8;     // a little hang at the top while held
+  if (st == SPINJ) g = 13;
+  if (hvy < 0 && cut && !(k & 16)) g *= 2;
+  else if (st == NORM && cut && k & 16 && hvy > -200 && hvy < 200) g = g*5/8;
+  if (throwt && st == NORM) { throwt--; hvy = g = 0; }
   hvy += g;
   if (st != GPSLAM) {
-    int ws = !gnd && wall && wall == dir && hvy > 0 && st == NORM;          // wall slide: ease into it
+    int ws = !gnd && wall && wall == dir && hvy > 0 && st == NORM;
     if (ws && hvy > 200) hvy = hvy-100 > 200 ? hvy-100 : 200;
     if (hvy > 1100) hvy = 1100;
   }
 
-  // Move on each axis separately and back out of solid tiles pixel by pixel.
+  if (gnd && st == NORM && D && slopedir && !takeoff) {
+    face = slopedir; roll(iabs(hvx) > 200 ? iabs(hvx) : 200);
+  }
+  if (gnd && st == ROLL && slopedir) {
+    hvx += slopedir*18;
+    if (iabs(hvx) > ROLLMAX) hvx = (hvx > 0 ? 1 : -1)*ROLLMAX;
+    if (hvx) face = hvx > 0 ? 1 : -1;
+  }
   hx += hvx; X = hx >> 8; Y = hy >> 8;
-  if (scan(X, Y, 6, 11, SOLID)) {
+  if (gnd && hvy >= 0) {
+    int slope, floor = floorat(X, Y+11, &slope);
+    if (floor <= Y+16 && (slope || slopedir) && !scan(X, floor-11+duck, 6, 11-duck, SOLID)) {
+      hy = (floor-11)*256; Y = hy>>8;
+    }
+  }
+  if (scan(X, Y+duck, 6, 11-duck, SOLID)) {
     int s = hvx > 0 ? -1 : 1;
-    do X += s; while (scan(X, Y, 6, 11, SOLID));
+    do X += s; while (scan(X, Y+duck, 6, 11-duck, SOLID));
     hx = X << 8; hvx = 0;
   }
   int was = gnd, vy0 = hvy; gnd = 0;
   hy += hvy; Y = hy >> 8;
-  if (st == GPSLAM) while (scan(X, Y, 6, 12, 4) == 2) brk(htx, hty);        // pound through bricks, also the ones just touched
-  if (hvy < 0) while (scan(X, Y, 6, 11, 4) == 2) brk(htx, hty), hvy = 0;   // head-bump bricks
-  if (scan(X, Y, 6, 11, SOLID)) {
+  if (st == GPSLAM) while (scan(X, Y+duck, 6, 12-duck, 4) == 2) brk(htx, hty);
+  if (hvy < 0) while (scan(X, Y+duck, 6, 11-duck, 4) == 2) brk(htx, hty), hvy = 0;
+  if (scan(X, Y+duck, 6, 11-duck, SOLID)) {
     int s = hvy > 0 ? -1 : 1;
-    do Y += s; while (scan(X, Y, 6, 11, SOLID));
+    do Y += s; while (scan(X, Y+duck, 6, 11-duck, SOLID));
     hy = Y << 8;
     if (hvy > 0) gnd = 1;
     hvy = 0;
-  } else if (hvy >= 0 && scan(X, Y+11, 6, 1, SOLID)) gnd = 1, hy = Y << 8, hvy = 0;   // resting on ground
+  } else if (hvy >= 0 && scan(X, Y+11, 6, 1, SOLID)) gnd = 1, hy = Y << 8, hvy = 0;
+  slopedir = 0;
   if (gnd) {
+    int slope; floorat(X, Y+11, &slope); slopedir = slope; launch = 0;
+    capok = diveok = stall = catchok = 1; throwt = twirl = 0;
     if (!was) {
       landt = 0;
-      if (st == DIVE) st = SLIDE;
-      if (st == GPSLAM) { st = GPLAND; stt = 0; shake = 8; sfx(4); rumble(6); }
-      else if (vy0 > 900) rumble(2);
-      if (st == LONGJ) st = NORM;
+      if (st == GPSLAM) {
+        st = GPLAND; stt = 0; poundt = 31; shake = 8; sfx(4); rumble(6);
+        if (rollbuf) roll(gpspin ? MAXV*30/14 : ROLLSTART);
+      } else if ((st == DIVE || st == LONGJ) && D) roll(iabs(hvx) > ROLLSTART ? iabs(hvx) : ROLLSTART);
+      else if (st == DIVE) st = SLIDE, posture(5);
+      else if (st == LONGJ || st == SPINJ) st = NORM;
+      if (vy0 > 900 && st != GPLAND) rumble(2);
     }
-    if (scan(X, Y+11, 6, 1, 32)) { hvy = -1500; gnd = 0; st = NORM; SPIN(30, face); cut = 0; sfx(8); rumble(5); }  // spring
+    if (scan(X, Y+11, 6, 1, 32)) {
+      hvy = -1500; gnd = 0; st = NORM; arcg = GRAV; launch = 0; posture(0); coy = 99; jbuf = 0;
+      SPIN(30, face); cut = 0; sfx(8); rumble(5);
+    }
   }
   wall = 0;
-  if (!gnd) wall = scan(X+6, Y+1, 1, 9, SOLID) ? 1 : scan(X-1, Y+1, 1, 9, SOLID) ? -1 : 0;
-  while (scan(X, Y, 6, 11, 64)) { map[hty][htx] = 0; coins++; sfx(7); }
-  // Spikes: touching one face counts, but the corners are forgiven (sides along the middle of the
-  // body, top and bottom across the middle 4 px), so grazes and one-pixel toe overlaps survive.
-  if (scan(X-1, Y+2, 8, 8, 8) || scan(X+1, Y-1, 4, 13, 8) || Y > MH*8+8) die();
-  // The pole counts at any height above its base, so jumping over the flag still wins.
-  if (X+6 > gx*8+2 && X < gx*8+6 && Y < gb && st < DEAD) { st = WIN; stt = 0; hvx = hvy = 0; hx = gx*8-3 << 8; sfx(6); rumble(8); }   // grab the pole
+  if (!gnd) wall = scan(X+6, Y+duck+1, 1, 9-duck, SOLID) ? 1 : scan(X-1, Y+duck+1, 1, 9-duck, SOLID) ? -1 : 0;
+  if (!gnd && !ledget && wall && dir == wall && hvy >= 0 && st == NORM && !duck) {
+    int side = wall > 0 ? X+6 : X-1, tx = side>>3;
+    for (int ty = (Y-2)>>3; ty <= (Y+6)>>3; ty++) {
+      int t = tile(tx, ty), top = ty*8, edge = wall > 0 ? tx*8 : (tx+1)*8;
+      if ((t == 1 || t == 2 || t == 4) && top >= Y-2 && top <= Y+6 && !scan(side, top-11, 1, 11, SOLID)) {
+        face = wall; hx = (wall > 0 ? edge-6 : edge)*256; hy = (top+2)*256;
+        climbx = (wall > 0 ? edge+1 : edge-7)*256; climby = (top-11)*256;
+        st = HANG; hvx = hvy = spin = throwt = launch = 0; jn = -1; break;
+      }
+    }
+  }
+  while (scan(X, Y+duck, 6, 11-duck, 64)) { map[hty][htx] = 0; coins++; sfx(7); }
+  if (scan(X-1, Y+duck+2, 8, 8-duck, 8) || scan(X+1, Y+duck-1, 4, 13-duck, 8) || Y > MH*8+8) die();
+  if (X+6 > gx*8+2 && X < gx*8+6 && Y < gb && st < DEAD) { st = WIN; stt = 0; hvx = hvy = 0; hx = gx*8-3 << 8; sfx(6); rumble(8); }
 }
 
 static void capupd(int k) {
   if (!cst) return;
-  if (cst == 1) {
-    cxp += cvx; cvx -= cvx > 0 ? 56 : -56;
-    if (iabs(cvx) < 100 || scan(cxp >> 8, cyp >> 8, 8, 4, SOLID)) cst = 2, ct = 0;
+  if (ckind == CAPSPIN && cst < 3) {
+    int a = ++ct*256/24;
+    int nx = hx + 256 + SIN[(a+64)&255]*14, ny = hy + (5 << 8) + SIN[a&255]*5;
+    if (!scan(nx >> 8, ny >> 8, 8, 4, SOLID)) cxp = nx, cyp = ny;
+    if (ct >= 24) cst = 3;
+  } else if (cst == 1) {
+    int nx = cxp + cvx, ny = cyp + cvy;
+    if (scan(nx >> 8, ny >> 8, 8, 4, SOLID)) {
+      if (capreflect && cvx) { cvx = -cvx; capreflect = 0; }
+      else cst = 2, ct = 0;
+    }
+    else {
+      cxp = nx; cyp = ny;
+      if (cvx) cvx -= cvx > 0 ? 72 : -72;
+      if (cvy) cvy -= cvy > 0 ? 72 : -72;
+      if (iabs(cvx) < 100 && iabs(cvy) < 100) cst = 2, ct = 0;
+    }
   } else if (cst == 2) {
-    if (++ct > (k & 32 ? 80 : 24)) cst = 3;   // holding the button keeps the cap hovering
+    if (ct < 24) ct++;
+    if (ct == 24 && !(k & 32)) cst = 3;
   } else {
-    int dx = hx + 256 - cxp, dy = hy + 768 - cyp;
+    int dx = hx + 256 - cxp, dy = hy + (duck+3)*256 - cyp;
     cxp += dx > 1000 ? 1000 : dx < -1000 ? -1000 : dx;
     cyp += dy > 1000 ? 1000 : dy < -1000 ? -1000 : dy;
-    if (iabs(dx) < 1024 && iabs(dy) < 1024) cst = 0;
+    if (iabs(dx) < 1024 && iabs(dy) < 1024) cst = 0, catcht = 10;
   }
-  if (cst && cst < 3 && capok && !gnd && st < DEAD && ov(hx >> 8, hy >> 8, 6, 11, cxp >> 8, cyp >> 8, 8, 5)) {
-    capok = 0; diveok = 1; hvy = -940; cut = 0; st = NORM; jn = 0; spin = 0; cst = 3;   // cap jump
+  if (cst && cst < 3) while (scan(cxp >> 8, cyp >> 8, 8, 4, 64)) { map[hty][htx] = 0; coins++; sfx(7); }
+  int touching = ov(hx >> 8, (hy >> 8)+duck, 6, 11-duck, cxp >> 8, cyp >> 8, 8, 5);
+  if (!touching) cready = 1;
+  int landing = hvy >= 0 && oldhy + (11 << 8) <= cyp + 256 && hy + (11 << 8) >= cyp;
+  int diving = st == DIVE && hy < cyp + (2 << 8);
+  int vault = gnd && st == NORM && cst == 2 && k & 32;
+  if (ckind != CAPSPIN && cst && cst < 3 && cready && (capok || vault) && (freemove() || st == DIVE) && touching && (vault || (!gnd && (landing || diving)))) {
+    if (!gnd) capok = 0;
+    else if (face*hvx < 700) hvx = face*700;
+    diveok = stall = 1; hvy = vault ? -CAPVAULT_V : -CAPBOUNCE_V; arcg = 32; launch = 0; cut = 0; st = NORM; posture(0); gnd = 0; jn = -1; spin = throwt = twirl = 0; coy = 99; cst = 3;
     burst((cxp >> 8)+4, cyp >> 8, 0xffffff, 5); sfx(3); rumble(1);
   }
 }
@@ -245,23 +496,59 @@ static void enemies(int k) {
       if (e->t == 2) e->y = e->h + o*192; else e->x += (ph < 64 ? 1 : -1)*96;
     }
     ex = e->x >> 8; ey = e->y >> 8;
-    if (st < DEAD && ov(X, Y, 6, 11, ex+1, ey+1, 6, 7)) {
+    if (st < DEAD && ov(X, Y+duck, 6, 11-duck, ex+1, ey+1, 6, 7)) {
       if ((hvy > 0 || st == GPSLAM) && Y+11 < ey+6) {
-        kill(e); hvy = k & 16 ? -1000 : -650; st = NORM; cut = 0; capok = diveok = 1; spin = 0;
+        kill(e); hvy = k & 16 ? -1000 : -650; st = NORM; arcg = GRAV; launch = 0; cut = 0; capok = diveok = stall = 1; spin = throwt = 0;
       } else die();
     }
     if (e->a && cst && cst < 3 && ov(cxp >> 8, cyp >> 8, 8, 5, ex, ey, 8, 8)) kill(e);
   }
 }
 
+static void destination(int choice) {
+  lvl = choice == NLV ? NLV+1 : choice;
+  deaths = coins = lcoins = tim = done = shake = rumq = 0;
+  for (P *p = pt; p < pt+NP; p++) p->l = 0;
+  menu = 0; resumable = 1; load(); sfx(2);
+}
+static void openmenu(int k) {
+  menu = 1; menusel = lvl >= NLV ? NLV : lvl;
+  menunav = 0; menurepeat = 0; menufr = 0;
+  // Don't move the selection just because movement was held when pausing.
+  int axis = moveaxis(k);
+  menunav = k & 12 ? (k & 8 ? 3 : -3) : axis > 128 ? 1 : axis < -128 ? -1 : 0;
+  menurepeat = 18;
+}
+static void menutick(int k, int pr) {
+  menufr++;
+  if (pr & BACK) { if (resumable) menu = 0; else quitting = 1; return; }
+  if (pr & MENUBACK) { if (resumable) menu = 0; return; }
+  if (pr & 32 && resumable) { menu = 0; return; }
+  if (pr & (16|START)) { destination(menusel); return; }
+  if (pr & PRACTICE) { destination(NLV); return; }
+  int axis = moveaxis(k);
+  int nav = k & 12 ? (k & 8 ? 3 : -3) : axis > 128 ? 1 : axis < -128 ? -1 : 0;
+  if (nav && (nav != menunav || --menurepeat <= 0)) {
+    menusel = (menusel+nav+MENUN) % MENUN; sfx(7);
+    menurepeat = nav != menunav ? 18 : 6;
+  }
+  menunav = nav;
+}
 static void tick(int k) {
   int pr = k & ~prevk;
   prevk = k;
+  if (k & CAP2) k |= 32;
+  if (pr & CAP2) pr |= 32;   // pressing the other face button is a real new action
   if (pr & 128 && shm) shm[2] ^= 1;
+  if (pr & QUIT) { quitting = 1; return; }
+  if (menu) { menutick(k, pr); return; }
+  if (pr & (BACK|START)) { openmenu(k); return; }
+  if (pr & PRACTICE) { lvl = lvl >= NLV ? 0 : NLV+1; done = lcoins = 0; load(); return; }
   if (pr & 64) { if (done) lvl = deaths = lcoins = tim = done = 0; load(); return; }
   fr++;
   if (!done) tim++;
   if (shake) shake--;
+  oldhy = hy;
   hero(k, pr);
   capupd(k);
   enemies(k);
@@ -325,8 +612,216 @@ static const u32 HPAL[3] = { 0xff7a1c, 0xffcc99, 0x1f4f5f };
 static const u32 GPAL[3] = { 0x9a48d0, 0xffffff, 0x301040 };
 static const u32 BPAL[3] = { 0xffd23c, 0xe8f4ff, 0x2a2a2a };
 
+// The menu has its own 768x432 canvas. Physics, gameplay art and mouse hit boxes
+// stay in the existing 256x144 world; the menu is sampled into the same window.
+#define MENUW (W*3)
+#define MENUH (H*3)
+static void mrect(int x, int y, int w, int h, u32 c) {
+  int ax=x*SW/MENUW, ay=y*SH/MENUH;
+  blk(ax,ay,(x+w)*SW/MENUW-ax,(y+h)*SH/MENUH-ay,c);
+}
+static u32 mixcolor(u32 a, u32 b, int weight, int total) {
+  u32 c=0;
+  for(int shift=0;shift<=16;shift+=8)
+    c |= (((a>>shift&255)*(total-weight)+(b>>shift&255)*weight)/total)<<shift;
+  return c;
+}
+static void mcover(int x, int y, int z, u32 c, int coverage) {
+  if(coverage==3) {mrect(x,y,z,z,c);return;}
+  int ax=x*SW/MENUW, ay=y*SH/MENUH, bx=(x+z)*SW/MENUW, by=(y+z)*SH/MENUH;
+  for(int py=ay;py<by;py++)for(int px=ax;px<bx;px++)
+    if((unsigned)px<SW && (unsigned)py<SH)big[py][px]=mixcolor(big[py][px],c,coverage,3);
+}
+static void mround(int x,int y,int w,int h,int r,u32 c) {
+  for(int row=0;row<h;row++) {
+    int dy=row<r?r-row-1:row>=h-r?row-(h-r):0, inset=0;
+    if(dy)while((r-inset)*(r-inset)+dy*dy>r*r)inset++;
+    mrect(x+inset,y+row,w-2*inset,1,c);
+  }
+}
+static void mellipse(int cx,int cy,int rx,int ry,u32 c) {
+  for(int y=-ry;y<=ry;y++) {
+    int x=rx;
+    while(x*x*ry*ry+y*y*rx*rx>rx*rx*ry*ry)x--;
+    mrect(cx-x,cy+y,2*x+1,1,c);
+  }
+}
+static void mline(int x,int y,int bx,int by,u32 c) {
+  int dx=iabs(bx-x),dy=-iabs(by-y),sx=x<bx?1:-1,sy=y<by?1:-1,e=dx+dy;
+  for(;;) {
+    mrect(x,y,1,1,c);if(x==bx && y==by)break;
+    int e2=2*e;if(e2>=dy)e+=dy,x+=sx;if(e2<=dx)e+=dx,y+=sy;
+  }
+}
+static int textwidth(const char *s,int z) {
+  int n=0;while(*s++)n++;
+  return n?(n*18-3)*z:0;
+}
+static void menutext(const char *s,int x,int y,int z,u32 c) {
+  for(;*s;s++,x+=18*z) {
+    int i=*s>='A'&&*s<='Z'?*s-'A':*s>='0'&&*s<='9'?*s-'0'+26:
+          *s=='-'?36:*s=='/'?37:*s==':'?38:*s=='.'?39:*s=='?'?40:-1;
+    if(i<0)continue;
+    for(int v=0;v<21;v++)for(int u=0;u<15;u++) {
+      int coverage=MENUFONT[i][v]>>((14-u)*2)&3;
+      if(coverage)mcover(x+u*z,y+v*z,z,c,coverage);
+    }
+  }
+}
+static void centered(const char *s,int y,int z,u32 c) {menutext(s,(MENUW-textwidth(s,z))/2,y,z,c);}
+static int menuhit(int x,int y) {
+  int page=menusel/6*6;
+  for(int i=0;i<6 && page+i<MENUN;i++) {
+    int cx=22+i%3*73,cy=62+i/3*32;
+    if(x>=cx && x<cx+66 && y>=cy && y<cy+27)return page+i;
+  }
+  return -1;
+}
+static void mcloud(int x,int y,int w) {
+  mround(x,y+7,w,10,5,0xd9edf2);
+  mellipse(x+w/3,y+7,w/6,7,0xffffef);mellipse(x+w*2/3,y+8,w/5,8,0xffffef);
+  mround(x+2,y+9,w-4,6,3,0xffffef);
+}
+static void mhat(int x,int y) {
+  mround(x+3,y,20,10,4,0x733431);mround(x+4,y+1,18,8,3,0xf07b35);
+  mround(x,y+7,30,5,2,0x733431);mround(x+1,y+7,28,3,1,0xffa449);
+  mrect(x+7,y+3,9,1,0xffce77);mrect(x+5,y+6,17,2,0xa5482d);
+}
+static void menupreview(int choice,int x,int y) {
+  u32 sky=choice==1?0x7da8d3:choice==3?0x546cbe:0x6cb9e7;
+  for(int row=0;row<45;row++)mrect(x,y+row,186,1,mixcolor(sky,0xbde6ee,row,70));
+  mcloud(x+12,y+4,43);mcloud(x+112,y+2,53);
+  for(int u=0;u<186;u++) {
+    int a=(u+21)%120-60,h=21+a*a/180;
+    if(h<45)mrect(x+u,y+h,1,45-h,0x8dc983);
+    int b=(u+70)%110-55,near=30+b*b/190;
+    if(near<45)mrect(x+u,y+near,1,45-near,0x5aaa66);
+  }
+  if(choice==3) {
+    for(int i=0;i<3;i++) {
+      int xx=x+23+i*52,yy=y+32-i*9;
+      mround(xx,yy,42,8,4,0xaccde9);mround(xx,yy-2,42,7,3,0xffffed);
+      mrect(xx+8,yy-3,26,1,0xffffff);
+    }
+    for(int i=0;i<4;i++){int xx=x+74+i*25,yy=y+7+(i&1)*5;mline(xx-2,yy,xx+2,yy,0xfff1bb);mline(xx,yy-2,xx,yy+2,0xfff1bb);}
+  } else {
+    mrect(x,y+36,186,9,0x9b623f);mrect(x,y+33,186,3,0x327d4f);mrect(x,y+32,186,1,0xb9e381);
+    for(int u=0;u<186;u+=7)mrect(x+u,y+36+(u%3),2,1,0xc2864e);
+    if(choice==1)for(int i=0;i<5;i++) {
+      int xx=x+50+i*23,yy=y+27-(i&1)*8;
+      mrect(xx,yy,21,11,0x9f4e39);mrect(xx+1,yy+1,19,9,0xda8d50);
+      mrect(xx+2,yy+1,17,1,0xffcd83);mrect(xx+10,yy+2,1,7,0xae603d);
+    }
+    if(choice==2)for(int i=0;i<6;i++) {
+      int xx=x+59+i*14;
+      for(int v=0;v<9;v++){mrect(xx-v/2,y+25+v,v+1,1,0x4c6383);mrect(xx-v/2,y+25+v,v/2+1,1,0xe8f4f3);}
+    }
+    if(choice==4) {
+      mrect(x+109,y+9,50,25,0x637e9d);mrect(x+111,y+10,46,24,0xb9c7cd);
+      for(int row=0;row<3;row++)for(int i=0;i<4;i++)mrect(x+112+i*12+(row&1)*5,y+13+row*8,9,1,0x90a5b6);
+      for(int i=0;i<4;i++){mrect(x+108+i*14,y+4,9,7,0x6a849e);mrect(x+109+i*14,y+4,7,5,0xdde6dc);}
+      mround(x+129,y+22,12,15,5,0x405c7a);mrect(x+134,y+27,1,8,0x1f3e61);
+      mline(x+142,y+4,x+142,y-1,0xffefc5);mrect(x+143,y-1,9,3,0xe56c59);
+    }
+    if(choice==NLV) {
+      for(int u=0;u<63;u++) {int h=u<33?u/3:(62-u)/3;mrect(x+89+u,y+32-h,1,h+1,0x368950);mrect(x+89+u,y+31-h,1,1,0xb5e687);}
+      mrect(x+148,y+24,24,9,0x829daf);mrect(x+148,y+23,24,2,0xc7d8d4);
+    }
+    if(choice==0) {
+      mline(x+139,y+15,x+139,y+33,0x466983);mline(x+140,y+15,x+140,y+33,0xfff5c7);
+      for(int u=0;u<16;u++)mrect(x+141+u,y+15,1,7-u/3,0xe76d5b);
+      for(int i=0;i<3;i++){int xx=x+64+i*14;mline(xx,y+29,xx,y+32,0x378552);mellipse(xx,y+27,2,2,0xffec9f);mrect(xx,y+27,1,1,0xe99554);}
+    }
+  }
+}
+static void menurender(void) {
+  ox=oy=capless=capoff=0;
+  for(int y=0;y<MENUH;y++)mrect(0,y,MENUW,1,mixcolor(0x739fd1,0xbce2e1,y,MENUH));
+  // Quiet scenery behind the title and cards, with softer layers and tiny stars.
+  for(int x=58;x<MENUW-58;x++) {
+    int a=(x+36)%222-111,h=315+a*a/360;
+    if(h<378)mrect(x,h,1,378-h,0x83bb88);
+  }
+  for(int i=0;i<12;i++) {
+    int x=83+i*51,y=140+(i%3)*7;
+    mrect(x,y,1,1,0xddebe1);
+  }
+  // Velvet folds vary smoothly at the higher resolution; gold edging and fringe
+  // keep the storybook stage shape while giving it finer seams and highlights.
+  for(int side=0;side<2;side++)for(int y=0;y<378;y++) {
+    int width=y<129?66-y/7:48+(y-129)/12;
+    for(int u=0;u<width;u++) {
+      int wave=SIN[(u*256/24+side*28)&255]+256;
+      u32 c=mixcolor(0x84233e,0xe56365,wave,512);
+      int xx=side?MENUW-1-u:u;mrect(xx,y,1,1,c);
+    }
+    int edge=side?MENUW-width:width-1;
+    mrect(edge,y,1,1,0xffe7a8);mrect(edge+(side?1:-1),y,2,1,0xdca16a);
+    if(!(y%5))mrect(edge+(side?3:-3),y,1,2,0xf9d891);
+  }
+  for(int x=0;x<MENUW;x++) {
+    int a=x%96-48,bottom=39-a*a/96;
+    for(int y=0;y<bottom;y++) {
+      int wave=SIN[(x*256/24)&255]+256;
+      mrect(x,y,1,1,y<5?0x742238:mixcolor(0x9c2e43,0xe97069,wave,512));
+    }
+    mrect(x,bottom,1,2,0xffe8ad);mrect(x,bottom+2,1,1,0xd69b67);
+    if(!(x%9))mround(x-1,bottom+3,3,5,1,0xffdca0);
+  }
+  // Stage boards and a restrained inlay replace the empty footer strip.
+  for(int y=372;y<MENUH;y++)mrect(0,y,MENUW,1,mixcolor(0x345171,0x263b58,y-372,60));
+  mrect(0,372,MENUW,2,0xffe1a0);mrect(0,374,MENUW,3,0xb47953);
+  for(int x=0;x<MENUW;x+=24)mrect(x,425,23,7,x&24?0x965351:0xaf665d);
+  mline(45,409,723,409,0x4a657e);mline(45,411,723,411,0x263b58);
+  // A gold-edged plaque, inset beads, and a shallow title extrusion.
+  mround(151,57,468,87,8,0x4c5871);mround(147,51,468,87,8,0xa67150);
+  mround(147,49,468,85,8,0xffd894);mround(150,52,462,79,6,0xc8615d);
+  mround(154,56,454,71,4,0x9b3e50);mround(156,58,450,67,3,0xc0515c);
+  mline(159,59,600,59,0xe78073);mline(159,123,600,123,0x913750);
+  for(int x=165;x<602;x+=16){mrect(x,54,2,1,0xffecc0);mrect(x,129,2,1,0xd8a16d);}
+  int tx=(MENUW-textwidth("HATRICK",3))/2;
+  menutext("HATRICK",tx+3,64,3,0x762b46);menutext("HATRICK",tx+2,62,3,0x8e3b4d);
+  menutext("HATRICK",tx,60,3,0xfff3d1);
+  centered("CHOOSE YOUR ADVENTURE",155,1,0xdcecf0);centered("CHOOSE YOUR ADVENTURE",153,1,0x2b5075);
+  int page=menusel/6*6;
+  for(int i=0;i<6 && page+i<MENUN;i++) {
+    int choice=page+i,x=66+i%3*219,y=186+i/3*96,active=choice==menusel;
+    mround(x+3,y+5,198,81,5,0x6684a0);
+    mround(x,y,198,81,5,active?0xad7244:0x56779a);
+    mround(x,y-1,198,79,5,active?0xffdb87:0xe8e6d2);
+    mround(x+2,y+1,194,75,3,active?0xeaaa5d:0x658baa);
+    menupreview(choice,x+6,y+5);
+    mrect(x+6,y+50,186,1,active?0xba884f:0x7694a4);
+    for(int row=0;row<24;row++)mrect(x+6,y+51+row,186,1,mixcolor(active?0xffedb2:0xfff5dc,active?0xf5d388:0xe7e8d7,row,32));
+    const char *name=choice==NLV?"PLAYGROUND":LNAME[choice];
+    int width=textwidth(name,1);char number[2]={'1'+choice,0};
+    if(width>186)name=number,width=textwidth(number,1);
+    menutext(name,x+(198-width)/2+1,y+54,1,0xd2c4a1);
+    menutext(name,x+(198-width)/2,y+53,1,0x2c4162);
+    // Fine corner studs and a floating cap keep the selected card easy to spot.
+    if(active) {
+      mrect(x+3,y+3,2,2,0xffffdf);mrect(x+193,y+3,2,2,0xffffdf);
+      mrect(x+3,y+72,2,2,0xffedb7);mrect(x+193,y+72,2,2,0xffedb7);
+      mhat(x+158,y+9+SIN[(menufr*5)&255]*2/256);
+    }
+  }
+  // Tiny dais decorations. No control hints are drawn on the menu.
+  for(int side=0;side<2;side++) {
+    int x=side?710:58;
+    mline(x,403,x,425,0x66a16c);mellipse(x-3,414,4,2,0x83bc83);
+    mellipse(x,400,5,5,0xf3c4b7);mellipse(x,400,2,2,0xffe3a4);
+  }
+  sprx(HSTAND,12,10*256,142*256,0,0,256,256,HPAL);
+  sprx(GRUM1,8,246*256,142*256,1,0,256,256,GPAL);
+}
+
 static u32 tilepx(int t, int tx, int ty, int u, int v) {
   int up = SOLID >> tile(tx, ty-1) & 1;
+  if (t == 8 || t == 9) {
+    int surface = t == 8 ? 7-u : u;
+    if (v < surface) return 0;
+    return v == surface ? 0x8be05a : v <= surface+2 ? 0x4cb83c : 0xa8642c;
+  }
   if (t == 1) {
     if (!up && v < 3 && !(v == 2 && (u*5+tx) % 3 == 0)) return v ? 0x4cb83c : 0x8be05a;
     if (!up && v == 3) return 0x6a3a1a;
@@ -376,6 +871,7 @@ static void camera(void) {
 
 static void render(void) {
   static int cm[SW], fh[SW], nh[SW];
+  if (menu) { menurender(); return; }
   camera();
   ox = cxf * SC >> 8;
   oy = (cyf * SC >> 8) + (shake ? (shake & 2 ? 2*SC : -2*SC) : 0);
@@ -422,7 +918,7 @@ static void render(void) {
   }
   capless = cst != 0;
   {
-    const u16 *f = HJUMP; int fl = face < 0, ang = 0, tang = 0, sx = 256, sy, bob = 0, fx = hx + (3 << 8), fy = hy + (11 << 8);
+    const u16 *f = HJUMP; int sh = 12, fl = face < 0, ang = 0, tang = 0, sx = 256, sy, bob = 0, fx = hx + (3 << 8), fy = hy + (11 << 8);
     if (face != lface) turnt = 4, lface = face;
     if (st < DEAD) {
       if (gnd && !pgnd) {                                  // landing: squash, dust on hard landings
@@ -434,11 +930,21 @@ static void render(void) {
     pgnd = gnd; pvy = hvy;
     capoff = 0;
     if (st == DEAD) ang = 128;
-    else if (st == DIVE || st == SLIDE) {
+    else if (st == ROLL) {
+      f = HROLL; sh = 8; ang = rollph = (rollph + hvx/32) & 255;
+      if (gnd && !(fr & 3)) dust(fx - face*(3 << 8), fy, -face, 1);
+    } else if (st == DIVE || st == SLIDE) {
       tang = face*64;
       if (st == SLIDE && !(fr & 3)) dust(fx - face*(3 << 8), fy, -face, 1);
-    } else if (st == LONGJ) tang = face*36;
-    else if (st == GPSLAM || st == GPLAND || (gnd && prevk & 8 && st == NORM)) f = HCROUCH, capoff = 3;
+    } else if (st == HANG || st == CLIMB) { f = HHANG; fl = face < 0; }
+    else if (twirl || st == SPINJ || st == GSPIN) {
+      f = HSPIN; int w = SIN[(fr*20+64)&255]; fl = w < 0; sx = iabs(w) < 64 ? 64 : iabs(w);
+    } else if (throwt) { f = HTHROW; tang = -face*12; }
+    else if (st == LONGJ) tang = face*36;
+    else if (duck) {
+      f = HCROUCH; capoff = 5;
+      if (gpspin && st == GPSLAM) { int w = SIN[(fr*24+64)&255]; fl = w < 0; sx = iabs(w) < 64 ? 64 : iabs(w); }
+    }
     else if (gnd) {
       if (iabs(hvx) < 50) f = HSTAND, runph = 0;
       else {   // the run cycle advances with distance, so it never looks like skating
@@ -451,7 +957,7 @@ static void render(void) {
       if (hvy <= 200 && !(fr & 3)) dust(fx + wall*(3 << 8), fy - (4 << 8), -wall, 1);
     }
     vang += (tang - vang) / 3;
-    if (st != DEAD) {
+    if (st != DEAD && st != ROLL) {
       ang = vang;
       if (spin) {   // flips: one smooth turn, eased in and out
         int t = (spinlen - spin) * 256 / spinlen;
@@ -460,7 +966,7 @@ static void render(void) {
     }
     if (turnt) { if (!spin && st < DIVE) sx = sx * (256 - turnt*44) >> 8; turnt--; }   // quick turn, not mid-flip
     sy = 256 + sqv; sx = sx * (256 - sqv/2) >> 8; sqv = sqv * 13 / 16;
-    sprx(f, 12, fx, fy + bob + iabs(vang) * 512 / 64, fl, ang, sx, sy, HPAL);
+    sprx(f, sh, fx, fy + bob + iabs(vang) * 512 / 64, fl, ang, sx, sy, HPAL);
   }
   {   // iris wipe: opens on Hatrick after a (re)start, closes before a restart or the next level
     int t = fr < 24 ? fr*256/24 : st == DEAD && stt > 36 ? (60-stt)*256/24 : st == WIN && stt > 66 && !(lvl == NLV-1) ? (90-stt)*256/24 : 256;
@@ -560,25 +1066,36 @@ static void audio(char **envp) {
   static char *av[] = { "aplay", "-q", "-traw", "-fU8", "-r44100", "-B40000", 0 };
   int fd[2];
   shm = (u8 *)sc(90, (int)mm, 0, 0);
-  if (sc(2, 0, 0, 0)) return;          // the game continues in the parent
+  if ((unsigned)shm >= (unsigned)-4095) { shm = 0; return; }
+  int parent = sc(20, 0, 0, 0);        // getpid before fork, for the parent-death race
+  if (sc(2, 0, 0, 0)) return;          // the game continues in the parent, also on fork failure
   sc(172, 1, 9, 0);                    // die with the game (PR_SET_PDEATHSIG, SIGKILL)
-  sc(42, (int)fd, 0, 0);
-  if (!sc(2, 0, 0, 0)) {               // grandchild: aplay reads the pipe
+  if (sc(64, 0, 0, 0) != parent || sc(42, (int)fd, 0, 0) < 0) sc(1, 0, 0, 0);
+  parent = sc(20, 0, 0, 0);
+  int player = sc(2, 0, 0, 0);
+  if (player < 0) sc(1, 0, 0, 0);
+  if (!player) {                      // grandchild: aplay reads the pipe
+    // Parent-death signals are cleared by fork: aplay needs its own registration.
+    sc(172, 1, 9, 0);
+    if (sc(64, 0, 0, 0) != parent) sc(1, 0, 0, 0);
     sc(63, fd[0], 0, 0);
+    if (fd[0]) sc(6, fd[0], 0, 0);
+    sc(6, fd[1], 0, 0);               // no writer in the reader: synth exit must produce EOF
     sc(11, (int)"/usr/bin/aplay", (int)av, (int)envp);
     sc(1, 0, 0, 0);
   }
+  sc(6, fd[0], 0, 0);                 // synth only owns the write end
   sc(55, fd[1], 1031, 4096);           // F_SETPIPE_SZ: keep latency low
   synth(fd[1]);
 }
 
 // ---------- gamepads: every evdev gamepad is read directly, Super Mario Odyssey layout ----------
 // A/B jump, X/Y cap, LT/RT (or LB/RB) crouch / ground pound, left stick or D-pad move,
-// Menu restarts, View mutes. Pads are rescanned every 2 s, so hotplugging works, and pads
+// Start opens the menu, View mutes. Pads are rescanned every 2 s, so hotplugging works, and pads
 // with force feedback get rumble effects uploaded (played from rumble()).
-static const short PADB[] = { 304, 305, 307, 308, 310, 311, 312, 313, 314, 315, 546, 547 };
-static const u8 PADK[]    = { 16,  16,  32,  32,  8,   8,   8,   8,   128, 64,  1,   2   };
-static struct { int fd, num, held, x, hx, t1, t2, mid, dz, tq, c1, c2, fx[8]; } pad[4];   // fd is stored +1, 0 = free slot
+static const short PADB[] = { 304, 305, 307, 308, 310, 311, 312, 313, 314, 315, 546, 547, 544, 545 };
+static const unsigned PADK[] = { 16, 16|MENUBACK, 32, CAP2, 8, 8, 8, 8, 128, START, 1, 2, 4, 8 };
+static struct { int fd, num, held, x, hx, y, hy, ymid, yrange, ydz, t1, t2, mid, range, dz, tq, c1, c2, fx[8]; } pad[4];   // fd is stored +1, 0 = free slot
 // Rumble effects 1..8 (see rumble()): strong motor, weak motor, length in ms.
 static const unsigned short RUM[8][3] = {
   { 0x0000, 0x4800,  50 }, { 0x3000, 0x3800,  70 }, { 0x5000, 0x3000,  80 }, { 0x6800, 0x5000, 100 },
@@ -598,8 +1115,11 @@ static void padscan(void) {
     if ((fd = sc(5, (int)path, 0x802, 0)) < 0 && (fd = sc(5, (int)path, 0x800, 0)) < 0) continue;   // O_RDWR (rumble), else O_RDONLY; O_NONBLOCK
     if (sc(54, fd, 0x80404521, (int)b) > 38 && b[38] & 1 && sc(54, fd, 0x80184540, (int)ai) >= 0) {   // EVIOCGBIT(EV_KEY): BTN_SOUTH; EVIOCGABS(ABS_X)
       typeof(pad[0]) *p = pad + free;
-      p->fd = fd+1; p->num = i; p->held = p->hx = p->t1 = p->t2 = 0; p->x = ai[0];
-      p->mid = (ai[1]+ai[2]) / 2; p->dz = (ai[2]-ai[1]) / 6;
+      p->fd = fd+1; p->num = i; p->held = p->hx = p->hy = p->t1 = p->t2 = p->y = p->ymid = p->yrange = p->ydz = 0; p->x = ai[0];
+      p->mid = (ai[1]+ai[2]) / 2; p->range = (ai[2]-ai[1]) / 2; p->dz = p->range / 6;
+      if (sc(54, fd, 0x80184541, (int)ai) >= 0) {
+        p->y = ai[0]; p->ymid = (ai[1]+ai[2])/2; p->yrange = (ai[2]-ai[1])/2; p->ydz = p->yrange/3;
+      }
       sc(54, fd, 0x80084523, (int)b);                     // EVIOCGBIT(EV_ABS): Bluetooth pads put the triggers on ABS_BRAKE / ABS_GAS
       p->c1 = b[1] & 2 ? 10 : 2; p->c2 = b[1] & 2 ? 9 : 5;
       p->tq = sc(54, fd, 0x80184540 + p->c1, (int)ai) < 0 ? 64 : ai[2] / 4;
@@ -631,7 +1151,7 @@ static void padrumble(int k) {   // play effect k (1..8) on every pad that has r
 
 static int padkeys(void) {
   static int wait;
-  int k = 0, n, ev[64];
+  int k = 0, axis = 0, n, ev[64];
   if (--wait < 0) wait = 120, padscan();
   for (int j = 0; j < 4; j++) {
     typeof(pad[0]) *p = pad + j;
@@ -639,21 +1159,28 @@ static int padkeys(void) {
     while ((n = sc(3, p->fd-1, (int)ev, sizeof ev)) > 0)
       for (int *e = ev; e < ev + n/4; e += 4) {           // struct input_event: time, u16 type, u16 code, s32 value
         int type = e[2] & 0xffff, code = e[2] >> 16, v = e[3];
-        if (type == 1) for (int i = 0; i < 12; i++) { if (PADB[i] == code) p->held = v ? p->held | 1 << i : p->held & ~(1 << i); }
+        if (type == 1) for (int i = 0; i < sizeof PADB/sizeof *PADB; i++) { if (PADB[i] == code) p->held = v ? p->held | 1 << i : p->held & ~(1 << i); }
         if (type == 3) {
           if (code == 0) p->x = v;
           if (code == 16) p->hx = v;
+          if (code == 1) p->y = v;
+          if (code == 17) p->hy = v;
           if (code == p->c1) p->t1 = v;
           if (code == p->c2) p->t2 = v;
         }
       }
     if (n != -11) { sc(6, p->fd-1, 0, 0); p->fd = 0; continue; }  // anything but EAGAIN: unplugged
-    for (int i = 0; i < 12; i++) if (p->held >> i & 1) k |= PADK[i];
-    if (p->x < p->mid - p->dz || p->hx < 0) k |= 1;
-    if (p->x > p->mid + p->dz || p->hx > 0) k |= 2;
+    for (int i = 0; i < sizeof PADB/sizeof *PADB; i++) if (p->held >> i & 1) k |= PADK[i];
+    int a = stickaxis(p->x, p->mid, p->range, p->dz);
+    if (iabs(a) > iabs(axis)) axis = a;
+    int ya = stickaxis(p->y, p->ymid, p->yrange, p->ydz);
+    if (p->hy < 0 || ya < -128) k |= 4;
+    if (p->hy > 0 || ya > 128) k |= 8;
+    if (p->hx < 0) k |= 1;
+    if (p->hx > 0) k |= 2;
     if (p->t1 > p->tq || p->t2 > p->tq) k |= 8;
   }
-  return k;
+  return k | (axis ? ANALOG | ((axis+256) << 10) : 0);
 }
 
 // The stack gets envp for aplay and stays 16-byte aligned as the ABI expects.
@@ -662,19 +1189,43 @@ asm(".globl _start\n_start: mov (%esp),%eax\n lea 8(%esp,%eax,4),%eax\n sub $12,
 __attribute__((noreturn)) void run(char **envp) {
   audio(envp);
   Display *d = XOpenDisplay(0);
+  if (!d) sc(1, 1, 0, 0);
   Window w = XCreateSimpleWindow(d, RootWindow(d, 0), 0, 0, W*SC, H*SC, 0, 0, 0);
   XStoreName(d, w, "Hatrick");
+  XSelectInput(d, w, ButtonPressMask | PointerMotionMask);
+  Atom wmdelete = XInternAtom(d, "WM_DELETE_WINDOW", False);
+  XSetWMProtocols(d, w, &wmdelete, 1);
   XMapWindow(d, w);
   XImage *im = XCreateImage(d, DefaultVisual(d, 0), 24, ZPixmap, 0, (char *)big, W*SC, H*SC, 32, 0);
   struct { int s, n; } t;
   char km[32];
-  load();
+  load(); menu = 1;
   sc(265, 1, (int)&t, 0);              // clock_gettime(CLOCK_MONOTONIC)
   for (;;) {
+    while (XPending(d)) {
+      XEvent e; XNextEvent(d, &e);
+      if (e.type == ClientMessage && (Atom)e.xclient.data.l[0] == wmdelete) quitting = 1;
+      if (menu && (e.type == MotionNotify || (e.type == ButtonPress && e.xbutton.button == 1))) {
+        int x = e.type == MotionNotify ? e.xmotion.x : e.xbutton.x;
+        int y = e.type == MotionNotify ? e.xmotion.y : e.xbutton.y;
+        int hit = menuhit(x/SC,y/SC);
+        if (hit >= 0) {
+          if (menusel != hit) menusel = hit, sfx(7);
+          if (e.type == ButtonPress) destination(hit);
+        }
+      }
+    }
     XQueryKeymap(d, km);
+    Window focused; int revert;
+    XGetInputFocus(d, &focused, &revert);
+    int active = focused == w;
+    if (!active) {
+      for (int i = 0; i < 32; i++) km[i] = 0;
+      if (resumable && !menu) openmenu(0);
+    }
 #define K(c) (km[c >> 3] >> (c & 7) & 1)
-    if (K(9)) sc(1, 0, 0, 0);
-    tick(padkeys() | K(113) | K(114) << 1 | K(111) << 2 | K(116) << 3 | (K(52) | K(65)) << 4 | K(53) << 5 | K(27) << 6 | K(58) << 7);
+    tick((active ? padkeys() : 0) | K(113) | K(114) << 1 | K(111) << 2 | K(116) << 3 | (K(52) | K(29) | K(65) | K(36) | K(104)) << 4 | K(53) << 5 | K(27) << 6 | K(58) << 7 | K(54) << 8 | K(67) << 20 | K(9) << 21 | K(24) << 23);
+    if (quitting) sc(1, 0, 0, 0);
     if (rumq) padrumble(rumq), rumq = 0;
     render();
     XPutImage(d, w, DefaultGC(d, 0), im, 0, 0, 0, 0, W*SC, H*SC);
@@ -696,7 +1247,7 @@ int main(int argc, char **argv) {
   char b[32];
   while (fscanf(f, "%d %31s", &n, b) == 2) {
     int k = 0;
-    for (char *c = b; *c; c++) k |= *c=='L' ? 1 : *c=='R' ? 2 : *c=='U' ? 4 : *c=='D' ? 8 : *c=='J' ? 16 : *c=='C' ? 32 : 0;
+    for (char *c = b; *c; c++) k |= *c=='L' ? 1 : *c=='R' ? 2 : *c=='U' ? 4 : *c=='D' ? 8 : *c=='J' ? 16 : *c=='C' ? 32 : *c=='V' ? CAP2 : 0;
     while (n--) {
       tick(k); frame++;
       if (rumq && getenv("RUMLOG")) printf("RUMBLE %d %d\n", frame, rumq);

@@ -1,4 +1,5 @@
 # Replays .tas files on the real game through xdotool keydown/keyup (e.g. under Xvfb).
+# Choose the starting destination from the menu and keep the game focused before replaying.
 # usage: DISPLAY=:99 python3 play.py [-shots DIR] tas/1.tas [tas/2.tas ...]
 # -shots saves a screenshot after each level's last input (needs python-xlib and Pillow).
 # Each file starts with an R press (restart: the level and its enemy timers reset), so the
@@ -7,7 +8,7 @@
 # the first level the screen is watched for redraws to find the game's frame phase, and
 # inputs are then sent mid-frame, well away from the moment the game polls the keyboard.
 import cmath, math, os, re, subprocess, sys, time
-KEYS = {"L": "Left", "R": "Right", "U": "Up", "D": "Down", "J": "z", "C": "x"}
+KEYS = {"L": "Left", "R": "Right", "U": "Up", "D": "Down", "J": "z", "C": "x", "V": "c"}
 FRAME = 1 / 60
 
 def goal_frame(path):   # stop sending input once ./sim says the flag is reached

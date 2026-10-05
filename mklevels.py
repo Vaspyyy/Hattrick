@@ -1,15 +1,20 @@
 # Converts levels.txt (ASCII maps, 32 rows each, separated by lines starting with '=')
 # into levels.h: per level [startx, starty] then 4-byte records x, y|type<<5, w, h.
-# Type 0 ends the level (goal x,y and level width), type 7 spawns an enemy (w = kind).
-import sys
-TILES = {"#": 1, "B": 2, "^": 3, "S": 4, "T": 5, "o": 6}
+# Type 0 ends the level (goal x,y and level width). Type 7: enemy when h=1;
+# extended single tile when h=0 (w = tile type). Older records keep their meaning.
+import sys, json
+TILES = {"#": 1, "B": 2, "^": 3, "S": 4, "T": 5, "o": 6, "/": 8, "\\": 9}
 ENEMY = {"g": 1, "b": 2, "h": 3}
-# Levels named "lab..." are test levels: moved to the end and only built into the simulator.
+# Labs follow the campaign; F1 opens the movement playground without changing campaign progression.
 levels, labs, cur = [], [], None
+names, labnames = [], []
 for line in open("levels.txt").read().split("\n"):
     if line.startswith("="):
         cur = []
-        (labs if line[1:].strip().startswith("lab") else levels).append(cur)
+        name = line[1:].strip()
+        lab = name.startswith("lab")
+        (labs if lab else levels).append(cur)
+        (labnames if lab else names).append(name.lstrip("0123456789 ").upper())
     elif not line.startswith(";") and cur is not None:
         cur.append(line.rstrip())
 nlv = len(levels)
@@ -28,9 +33,11 @@ for li, rows in enumerate(levels):
             c = g[y][x]
             if c == "@": start = (x, y)
             elif c == "F": goal = (x, y)
+            elif c in "/\\": data += [x, y | 7 << 5, TILES[c], 0]
             elif c in ENEMY: data += [x, y | 7 << 5, ENEMY[c], 1]
     assert start and goal, li
     for ch, t in TILES.items():   # greedy rectangles: extend right, then down
+        if t > 7: continue
         used = [[False] * w for _ in range(32)]
         for y in range(32):
             for x in range(w):
@@ -45,9 +52,9 @@ for li, rows in enumerate(levels):
     data = [start[0], start[1] - 1] + data + [goal[0], goal[1], w, 0]
     total += len(data) * (li < nlv)
     out.append("static const unsigned char L%d[]={%s};" % (li, ",".join(map(str, data))))
-    if li >= nlv: out[-1] = "#ifdef SIM\n" + out[-1] + "\n#endif"
-out.append("static const unsigned char *const LV[]={%s\n#ifdef SIM\n%s\n#endif\n};" % (
+out.append("static const unsigned char *const LV[]={%s%s};" % (
     "".join("L%d," % i for i in range(nlv)), "".join("L%d," % i for i in range(nlv, len(levels)))))
 out.append("#define NLV %d" % nlv)
+out.append("static const char *const LNAME[]={%s};" % ",".join(json.dumps(name) for name in names))
 open("levels.h", "w").write("\n".join(out) + "\n")
 print("levels:", nlv, "+", len(levels) - nlv, "lab, bytes:", total)
