@@ -1,0 +1,8 @@
+# build outputs
+/hatrick
+/sim
+/gfx.h
+/levels.h
+__pycache__/
+# downloaded instruments (see audio/fetch_instruments.py); their licenses are kept
+/assets/instruments/
