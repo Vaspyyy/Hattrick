@@ -546,7 +546,11 @@ static void hero(int k, int pr) {
     int side = wall > 0 ? X+6 : X-1, tx = side>>3;
     for (int ty = (Y-2)>>3; ty <= (Y+6)>>3; ty++) {
       int t = tile(tx, ty), top = ty*8, edge = wall > 0 ? tx*8 : (tx+1)*8;
-      if ((t == 1 || t == 2 || t == 4) && top >= Y-2 && top <= Y+6 && !scan(side, top-11, 1, 11, SOLID)) {
+      // A hanging body sits below the lip. Keep two tiles on its side clear so
+      // snapping into HANG cannot put its feet inside the lower step of stairs.
+      int airx = wall > 0 ? edge-8 : edge;
+      if ((t == 1 || t == 2 || t == 4) && top >= Y-2 && top <= Y+6 &&
+          !scan(side, top-11, 1, 11, SOLID) && !scan(airx, top, 8, 16, SOLID)) {
         face = wall; hx = (wall > 0 ? edge-6 : edge)*256; hy = (top+2)*256;
         climbx = (wall > 0 ? edge+1 : edge-7)*256; climby = (top-11)*256;
         st = HANG; hvx = hvy = spin = throwt = launch = 0; jn = -1; sfx(S_LEDGE); break;
