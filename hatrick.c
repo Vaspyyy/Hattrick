@@ -25,7 +25,14 @@ typedef unsigned u32;
 #ifndef SC
 #define SC 4            // window scale
 #endif
-#define MW 256          // map size in 8 px tiles
+#define MW 2560         // map size in 8 px tiles: 2560 wide (20480 px), 32 high
+// Per level (main area and bonus rooms together): the most of each object.
+#define MAXEN 480
+#define MAXTUBE 128
+#define MAXBAR 240
+#define MAXHOME 240
+#define MAXCR 960
+#define MAXCK 64
 #define MH 32
 #define SOLID 0x1BF3E    // full tiles 1..5, slopes 8..9, tubes 10..12, crumble 13, found hidden block 15, fire bar pivot 16
 // Tiles: see tiletype().
@@ -111,7 +118,7 @@ typedef struct { int room, tube, spit; } Home;             // a tube dweller and
 typedef struct { int w, cave; u8 grid[MH][MW]; } Room;
 typedef struct {
   char name[40], music[64]; int card, lab, nroom, ntube, nbar, nhome, nmoon;
-  Room room[NROOM]; Tube tube[40]; Bar bar[24]; Home home[24];
+  Room room[NROOM]; Tube tube[MAXTUBE]; Bar bar[MAXBAR]; Home home[MAXHOME];
   struct { int room, x, y; } moon[3];   // its secret moon coins, in reading order (main area, then rooms)
 } Level;
 static Level *LV;
@@ -193,7 +200,7 @@ static void parseobjects(Level *L, int r, const char *file, const int *line) {
         seen[y+1][x] = 1;
         t.dir = AT(x-1, y) == '-' && AT(x+1, y) != '-' ? T_RIGHT : T_LEFT;
       } else { levelerr(file, line[y], "tube mouth '%c' in column %d needs a second cell: side by side for a tube opening up or down, stacked for one opening sideways", c, x+1); continue; }
-      if (L->ntube < 40) L->tube[L->ntube++] = t; else levelerr(file, line[y], "too many tube mouths (at most 40)");
+      if (L->ntube < MAXTUBE) L->tube[L->ntube++] = t; else levelerr(file, line[y], "too many tube mouths (at most %d)", MAXTUBE);
     }
     if (c == '*' || c == '%') {
       static const int DX[4] = { 1, 0, -1, 0 }, DY[4] = { 0, 1, 0, -1 };
@@ -204,7 +211,7 @@ static void parseobjects(Level *L, int r, const char *file, const int *line) {
       }
       int speed = kind == ':' ? 182 : kind == '!' ? 437 : 273;   // a turn in 6, 4 or 2.5 s
       Bar b = { r, x, y, best ? best+1 : 5, c == '*' ? speed : -speed, dir*64 };
-      if (L->nbar < 24) L->bar[L->nbar++] = b; else levelerr(file, line[y], "too many fire bars (at most 24)");
+      if (L->nbar < MAXBAR) L->bar[L->nbar++] = b; else levelerr(file, line[y], "too many fire bars (at most %d)", MAXBAR);
     }
   }
   for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++) {
@@ -215,8 +222,8 @@ static void parseobjects(Level *L, int r, const char *file, const int *line) {
       if (t->room == r && (t->x == x || t->x+1 == x) && ((t->dir == T_UP && t->y == y+1) || (t->dir == T_DOWN && t->y == y-1))) home = i;
     }
     if (home < 0) levelerr(file, line[y], "tube dweller '%c' in column %d must sit right above a tube opening up, or right below one opening down", c, x+1);
-    else if (L->nhome < 24) L->home[L->nhome++] = (Home){ r, home, c == 'm' };
-    else levelerr(file, line[y], "too many tube dwellers (at most 24)");
+    else if (L->nhome < MAXHOME) L->home[L->nhome++] = (Home){ r, home, c == 'm' };
+    else levelerr(file, line[y], "too many tube dwellers (at most %d)", MAXHOME);
   }
   #undef AT
 }
@@ -262,7 +269,7 @@ static int parselevels(const char *text, const char *file) {
     }
     if (ok && sx < 0) levelerr(file, h+1, "level \"%s\" has no start (@), skipped", L->name), ok = 0;
     if (ok && fx < 0) levelerr(file, h+1, "level \"%s\" has no flag (F), skipped", L->name), ok = 0;
-    if (ok && nen > 48) levelerr(file, h+1, "level \"%s\" has too many enemies (at most 48), skipped", L->name), ok = 0;
+    if (ok && nen > MAXEN) levelerr(file, h+1, "level \"%s\" has too many enemies (at most %d), skipped", L->name, MAXEN), ok = 0;
     if (ok) {
       for (int r = 0; r < L->nroom; r++) parseobjects(L, r, file, lines[r]);
       for (int id = 0; id < 10; id++) {   // each digit links the two mouths that carry it
@@ -280,8 +287,8 @@ static int parselevels(const char *text, const char *file) {
       int nck = 0, ncr = 0;
       for (int r = 0; r < L->nroom; r++) for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++)
         nck += L->room[r].grid[y][x] == 'K', ncr += L->room[r].grid[y][x] == 'C';
-      if (nck > 16) levelerr(file, h+1, "level \"%s\" has more than 16 checkpoints; the rest are ignored", L->name);
-      if (ncr > 96) levelerr(file, h+1, "level \"%s\" has more than 96 crumble blocks; the rest stay solid", L->name);
+      if (nck > MAXCK) levelerr(file, h+1, "level \"%s\" has more than %d checkpoints; the rest are ignored", L->name, MAXCK);
+      if (ncr > MAXCR) levelerr(file, h+1, "level \"%s\" has more than %d crumble blocks; the rest stay solid", L->name, MAXCR);
     }
     n += ok;
     h = end - 1;
@@ -314,11 +321,11 @@ typedef struct { int room, x, y, vx, vy, a; } Shot;             // a spitter's s
 typedef struct { int room, x, y, up; } Check;
 static struct World {
   u8 rm[NROOM][MH][MW];
-  E en[48]; int ne;
-  Crumble cr[96]; int ncr;
-  Dweller dw[24];
+  E en[MAXEN]; int ne;
+  Crumble cr[MAXCR]; int ncr;
+  Dweller dw[MAXHOME];
   Shot sh[8];
-  Check ck[16]; int nck;
+  Check ck[MAXCK]; int nck;
   int found;      // bonus rooms already visited (bit per room), for the find bonus
   int moongot;    // moon coins picked up on this visit (bit per coin); kept once the flag is reached
 } wd, saved;
@@ -446,7 +453,7 @@ static void build(void) {
     if (r == 0 && c == '@') startx = x, starty = y;
     if (r == 0 && c == 'F') gx = x, gy = y;
     if (c == 'g' || c == 'b' || c == 'h') { E *n = en + ne++; n->x = x << 11; n->y = n->h = y << 11; n->vx = -100; n->vy = 0; n->t = c == 'g' ? 1 : c == 'b' ? 2 : 3; n->a = 1; n->r = r; }
-    if (c == 'C' && wd.ncr < 96) wd.cr[wd.ncr++] = (Crumble){ r, x, y };
+    if (c == 'C' && wd.ncr < MAXCR) wd.cr[wd.ncr++] = (Crumble){ r, x, y };
     if (c == 'K' && wd.nck < 16) wd.ck[wd.nck++] = (Check){ r, x, y };
   }
   for (int i = 0; i < L->nhome; i++) wd.dw[i] = (Dweller){ 0, 40 + i*53 % 100, 0, 1 };   // staggered

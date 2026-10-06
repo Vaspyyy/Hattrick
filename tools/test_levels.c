@@ -56,13 +56,25 @@ int main(void) {
   CHECK(LV[0].card == CARD_CASTLE);
 
   // too tall / too wide / too many enemies
-  char big[20000] = "= 1 tall\n@ F\n"; for (int i = 0; i < 32; i++) strcat(big, "#\n");
-  strcat(big, "= 2 wide\n@ F\n"); for (int i = 0; i < 257; i++) strcat(big, "#"); strcat(big, "\n");
-  strcat(big, "= 3 crowd\n@ F\n"); for (int i = 0; i < 49; i++) strcat(big, "g"); strcat(big, "\n#\n");
+  static char big[20000] = "= 1 tall\n@ F\n"; for (int i = 0; i < 32; i++) strcat(big, "#\n");
+  strcat(big, "= 2 wide\n@ F\n"); for (int i = 0; i < MW+1; i++) strcat(big, "#"); strcat(big, "\n");
+  strcat(big, "= 3 crowd\n@ F\n"); for (int i = 0; i < MAXEN+1; i++) strcat(big, "g"); strcat(big, "\n#\n");
   strcat(big, "= 4 fine\n@ F\n###\n");
   CHECK(parse(big) && NLV == 1 && !strcmp(LV[0].name, "FINE"));
-  CHECK(strstr(err, "level \"TALL\" is taller than 32 rows") && strstr(err, "level \"WIDE\" is wider than 256 columns") &&
-        strstr(err, "level \"CROWD\" has too many enemies (at most 48)"));
+  char wide[80], crowd[80];
+  snprintf(wide, sizeof wide, "level \"WIDE\" is wider than %d columns", MW); snprintf(crowd, sizeof crowd, "level \"CROWD\" has too many enemies (at most %d)", MAXEN);
+  CHECK(strstr(err, "level \"TALL\" is taller than 32 rows") && strstr(err, wide) && strstr(err, crowd));
+  // a long level: 2500 columns, played and drawn at its far end
+  static char longl[12000] = "= 1 long\n";
+  { char *p = longl + strlen(longl); p[0] = '@'; for (int i = 1; i < 2490; i++) p[i] = ' '; strcpy(p + 2490, "F\n");
+    p += strlen(p); for (int i = 0; i < 2500; i++) p[i] = '#'; strcpy(p + 2500, "\n"); }
+  CHECK(parse(longl) && !*err && LV[0].room[0].w == 2500);
+  fresh(); lvl = 0; load(); menu = 0; resumable = 1;
+  CHECK(lw == 2500 && gx == 2490);
+  hx = (2470*8) << 8; hy = (30*8-11) << 8; hvx = 0;
+  for (int i = 0; i < 300 && st != WIN; i++) tick(2), render();
+  CHECK(st == WIN && cxf >> 8 == lw*8 - W);   // the camera reaches the very end
+  CHECK(parse(big) && NLV == 1);   // back to the list the next checks use
 
   // nothing playable: reported, and the previous levels stay
   CHECK(!parse("= lab only\n@ F\n#\n") && strstr(err, "no playable level") && NLV == 1 && !strcmp(LV[0].name, "FINE"));

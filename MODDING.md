@@ -173,7 +173,7 @@ Levels are ASCII maps. Each one starts with a header line, followed by its rows,
 
 **Order and the map:** campaign levels are played in file order, and you can have as many as you like: the overworld lays out one stop per level along its path (the map scrolls as far as it needs), each opening once the level before it is cleared. Finishing the last one ends the run. Levels whose name starts with `lab` are not part of the campaign. The last `lab` level is the movement playground (F1, and its stop below Hatrick's house). Without any lab level there is no playground. Progress is kept by level name: renaming a level makes it count as not cleared.
 
-**Size:** an area is at most 32 rows tall and 256 columns wide. Rows sit at the bottom of the 32-row map, so a short level is just floor and sky. Empty lines inside a map count as rows. Every level needs exactly one `@` and one `F`. A level holds at most 3 moon coins, 48 enemies, 40 tube mouths, 24 fire bars, 24 tube dwellers, 96 crumble blocks and 16 checkpoints.
+**Size:** an area is at most 32 rows tall and 2560 columns wide (a long level runs for minutes; the 500-second timer is the real limit). Rows sit at the bottom of the 32-row map, so a short level is just floor and sky. Empty lines inside a map count as rows. Every level needs exactly one `@` and one `F`. A level holds at most 3 moon coins, 480 enemies, 128 tube mouths, 240 fire bars, 240 tube dwellers, 960 crumble blocks and 64 checkpoints.
 
 | Char | Tile | Char | Tile |
 |---|---|---|---|
