@@ -4,14 +4,14 @@ Everything you can mod lives in `assets/` next to the game:
 
 | Path | What |
 |---|---|
-| `levels.txt` | every level and bonus room, its name, music and menu card |
+| `levels.txt` | every level and bonus room, its name, music and map landmark |
 | `sfx/` | sound effects |
 | `music/` | jingles, and one folder per music theme |
 | `gfx/` | replacement art: tiles, Hatrick, enemies, backgrounds (PNG) |
 
 The game reads these files when it starts, so there is no rebuild: edit, then restart the game. Mistakes never stop the game. A broken level, an unknown option or a missing sound is reported on the terminal with the file and line, and the rest still works. Run `./hatrick` from a terminal to see these reports, or `./sim --check` to check `levels.txt` alone.
 
-The high-score table and the moon coins found are saved separately, in `~/.hatrick_scores` and `~/.hatrick_moons`.
+The high-score table and the progress (levels cleared, moon coins found) are saved separately, in `~/.hatrick_scores` and `~/.hatrick_progress`.
 
 ## Sounds and music
 
@@ -41,7 +41,7 @@ To replace a sound, drop in a file with the same name. Music is read each time a
 | `land` | landing from a big fall |
 | `skid` | skidding while turning around |
 | `ledge` | grabbing a ledge |
-| `menu_move`, `menu_ok`, `menu_back`, `pause` | menu navigation, choosing a destination, resuming, opening the pause menu |
+| `menu_move`, `menu_ok`, `menu_back`, `pause` | a step on the map or a choice moving, entering a level, resuming, opening the pause screen |
 | `checkpoint` | touching a checkpoint flag |
 | `tube` | going into a tube, and coming out of the other end |
 | `crumble` | a crumble block starting to shake |
@@ -59,11 +59,11 @@ Sounds play once at full length, overlapping freely (up to 32 at a time). Sounds
 
 ### Music: `assets/music/<theme>/`
 
-Each level picks its theme folder with `music=` in `levels.txt` (see below). The title menu plays a calm mix of the first level's theme. The stock themes are:
+Each level picks its theme folder with `music=` in `levels.txt` (see below). The overworld map plays a calm mix of the first level's theme. The stock themes are:
 
 | Theme folder | Used by |
 |---|---|
-| `overworld` | Hills, and the title menu |
+| `overworld` | Hills, and the overworld map |
 | `underground` | Brickworks |
 | `athletic` | Spikes, Sky, the movement playground |
 | `finale` | Hatrick |
@@ -74,12 +74,12 @@ A theme is up to seven stems that loop together, all starting at the same moment
 
 | Stem | When it is heard |
 |---|---|
-| `lead` | in levels (muted on the title menu) |
+| `lead` | in levels (muted on the map) |
 | `bass`, `perc`, `bells`, `bah` | always |
 | `fast` | fades in while Hatrick runs at full speed or chains long jumps, dives, rolls, spin jumps or triple jumps |
 | `arp` | fades in after cap bounces and stomps in mid-air |
 
-All stems are optional: a missing stem is just silent. To use a single finished song, save it as `bass.ogg` (heard everywhere, including the menu), or as `lead.ogg` if it should be silent on the title menu. Then delete the other stems.
+All stems are optional: a missing stem is just silent. To use a single finished song, save it as `bass.ogg` (heard everywhere, including the map), or as `lead.ogg` if it should be silent on the map. Then delete the other stems.
 
 The loop length is the length of the longest stem. Shorter stems go silent until the loop restarts. For a seamless loop, make every stem exactly the same length. The music fades out on pause (it ducks), death and the flag, and restarts from the top when a level starts.
 
@@ -143,7 +143,7 @@ Cells 30 and 31 are unused. Each tile cell is drawn at the same spot whatever it
 
 **`hatrick.png` frames**, left to right: standing, running (2 frames), jumping and falling, throwing, hanging from a ledge, crouching, spinning, the course-clear pose, rolling. The rolling frame is 8x8, sitting at the bottom of its 8x12 cell; the other frames face right and stand on the bottom row (the game mirrors them for left).
 
-The menu, the HUD, the flag, checkpoints and particles are still drawn by the game itself.
+The overworld map, the HUD, the flag, checkpoints and particles are still drawn by the game itself.
 
 ## Levels: `assets/levels.txt`
 
@@ -162,16 +162,16 @@ Levels are ASCII maps. Each one starts with a header line, followed by its rows,
 #########
 ```
 
-**Header:** `=`, then the level's name. A leading number is just for your own ordering; it isn't shown. The name appears on the destination menu in capitals (letters, digits and `- / : . ?`). Options:
+**Header:** `=`, then the level's name. A leading number is just for your own ordering; it isn't shown. The name appears in the overworld map's banner in capitals (letters, digits and `- / : . ?`). Options:
 
 | Option | Meaning | Default |
 |---|---|---|
 | `music=<folder>` | theme folder in `assets/music/` | `overworld` |
-| `card=<style>` | menu card picture: `hills`, `bricks`, `spikes`, `sky`, `castle` or `playground` | `hills` |
+| `card=<style>` | the landmark beside its stop on the map: `hills`, `bricks`, `spikes`, `sky`, `castle` or `playground` | `hills` |
 
 **Bonus rooms:** a line starting with `+` begins a bonus room of the level above it, with its own map (same size rules). The rest of the line is a name for your own use, plus an optional `bg=cave` (the default: a dim cave) or `bg=sky`. Rooms are only reachable through tubes. The start and the flag belong in the level's main area. The first time Hatrick enters a bonus room is worth 2000 points.
 
-**Order:** campaign levels are played in file order, and you can have as many as you like (the menu pages through them six at a time). Finishing the last one ends the run. Levels whose name starts with `lab` are not part of the campaign. The last `lab` level is the movement playground (F1, and its card on the menu). Without any lab level there is no playground. The last card on the menu is always the high-score table.
+**Order and the map:** campaign levels are played in file order, and you can have as many as you like: the overworld lays out one stop per level along its path (the map scrolls as far as it needs), each opening once the level before it is cleared. Finishing the last one ends the run. Levels whose name starts with `lab` are not part of the campaign. The last `lab` level is the movement playground (F1, and its stop below Hatrick's house). Without any lab level there is no playground. Progress is kept by level name: renaming a level makes it count as not cleared.
 
 **Size:** an area is at most 32 rows tall and 256 columns wide. Rows sit at the bottom of the 32-row map, so a short level is just floor and sky. Empty lines inside a map count as rows. Every level needs exactly one `@` and one `F`. A level holds at most 3 moon coins, 48 enemies, 40 tube mouths, 24 fire bars, 24 tube dwellers, 96 crumble blocks and 16 checkpoints.
 
@@ -216,7 +216,7 @@ Hatrick goes in by pressing Down on top of a mouth that opens up, by walking int
 
 **Tube dwellers (`n` `m`):** put one right above a mouth that opens up (or right below one that opens down), over either of its two cells. It hides, rises out, snaps, and sinks back on a timer, but stays in while Hatrick is right next to or on its tube. Touching one is fatal, stomping included. Only the cap beats it (500 points). The `m` kind also lobs slow arcing seeds at Hatrick; the cap knocks those out of the air too. Usually you'll give dwellers an `M` mouth, but they can live in linked tubes as well: they stay in while Hatrick travels through.
 
-**Moon coins (`(`):** each level can hide up to three, in its main area or its bonus rooms. They're the game's secrets, so put them somewhere that takes exploring or skill to reach: behind a tube, above a hidden-block staircase, at the end of a hard detour. Picking one up is worth 2000 points, but it only counts once Hatrick reaches the flag; a death before the next checkpoint loses it again. Coins brought home are saved in `~/.hatrick_moons` by level name ("`<bits> <LEVEL NAME>`" per line, bit 1 for the level's first moon coin in reading order, 2 for the second, 4 for the third). They show on the level's menu card, and as faint outlines in the level (they can still be picked up for points). Renaming a level forgets its moon coins.
+**Moon coins (`(`):** each level can hide up to three, in its main area or its bonus rooms. They're the game's secrets, so put them somewhere that takes exploring or skill to reach: behind a tube, above a hidden-block staircase, at the end of a hard detour. Picking one up is worth 2000 points, but it only counts once Hatrick reaches the flag; a death before the next checkpoint loses it again. Coins brought home are saved in `~/.hatrick_progress` by level name ("`<bits> <LEVEL NAME>`" per line, bit 1 for the level's first moon coin in reading order, 2 for the second, 4 for the third; 8 means the level is cleared). They show in the map's banner on the level's stop, and as faint outlines in the level (they can still be picked up for points). Renaming a level forgets its moon coins.
 
 **Timer:** every level has 500 seconds, shown in the HUD; it turns red with a warning sound at 100 and running out is a death. It starts over with the level (and with R); a checkpoint keeps the time that was left, unless it ran out.
 

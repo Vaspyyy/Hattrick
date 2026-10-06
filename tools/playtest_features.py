@@ -13,11 +13,11 @@ from Xlib import X, display
 REPO = Path(__file__).resolve().parent.parent
 ART = Path('/tmp/hatrick-feature-playtest'); ART.mkdir(exist_ok=True)
 FIELDS = ('menu', 'naming', 'scoreview', 'done', 'lvl', 'room', 'st', 'gnd', 'hx', 'hy', 'coins', 'score', 'deaths',
-          'haveck', 'crumble', 'dweller', 'barangle', 'fr', 'wphase', 'tim', 'hidden')
+          'haveck', 'crumble', 'dweller', 'barangle', 'fr', 'wphase', 'tim', 'hidden', 'mapat', 'mapto', 'resumable')
 TRACE = ('{ int tr[] = { menu, naming, scoreview, done, lvl, room, st, gnd, hx >> 8, hy >> 8, coins, score, deaths, haveck, '
          'wd.ncr > 1 ? (wd.cr[0].state == 1 || wd.cr[1].state == 1) : -1, LV[lvl].nhome ? wd.dw[0].phase*2 + wd.dw[0].a : -1, '
          'LV[lvl].nbar ? (LV[lvl].bar[0].a0*256 + LV[lvl].bar[0].speed*fr) >> 8 & 255 : -1, fr, wphase, tim, '
-         'tile(11, 25) }; fwrite(tr, sizeof tr, 1, stdout); fflush(stdout); }\n')
+         'tile(11, 25), mapat, mapto, resumable }; fwrite(tr, sizeof tr, 1, stdout); fflush(stdout); }\n')
 # The test level: every object within a short walk. Hatrick walks on row y29 (stands at y 221).
 L1 = [
     '',
@@ -153,22 +153,28 @@ def main():
                 release('Right'); time.sleep(.9); shot('9-course-clear.png')
                 until(lambda s: s['wphase'] >= 2, 6, 'tally'); time.sleep(.25); shot('10-tally.png')
                 t0 = state()['tim']; tap('z')
-                s = until(lambda s: s['lvl'] == 1 and s['st'] == 0, 2, 'skipped to level 2')
-                print(f'PASS: the course clear (slide, pose, tally) plays, and Jump skips it ({s["tim"] - t0} frames)')
+                s = until(lambda s: s['menu'] == 1 and s['resumable'] == 0 and s['mapat'] == 1, 2, 'skipped to the map')
+                print(f'PASS: the course clear (slide, pose, tally) plays, and Jump skips it to the map ({s["tim"] - t0} frames)')
+                time.sleep(1.3); shot('11-map-path-opens.png')
+                tap('Right'); until(lambda s: s['mapat'] == 2 and s['mapto'] < 0, 4, 'walk to level 2')
+                print('PASS: clearing level 1 opened the path to level 2 on the map')
+                tap('Return'); until(lambda s: s['menu'] == 0 and s['lvl'] == 1 and s['fr'] > 30, 3, 'level 2')
                 # level 2: let the whole celebration run; the run ends with the initials
                 hold('Right'); until(lambda s: s['st'] == 14, 8, 'flag 2'); release('Right')
                 s = until(lambda s: s['naming'] == 1, 20, 'initials entry')
-                score = s['score']; time.sleep(.3); shot('11-new-high-score.png')
+                score = s['score']; time.sleep(.3); shot('12-new-high-score.png')
                 tap('Up'); tap('Up'); tap('Right'); tap('Down'); tap('z'); tap('Up'); tap('Return')
                 s = until(lambda s: s['scoreview'] == 1 and s['menu'] == 1, 3, 'score table')
-                time.sleep(.3); shot('12-score-table.png')
+                time.sleep(.3); shot('13-score-table.png')
                 saved = scores.read_text()
                 assert saved.split() == ['CZB', str(score)], saved
                 print(f'PASS: the run ends with initials, saved to ~/.hatrick_scores as "{saved.strip()}"')
-                tap('Escape'); until(lambda s: s['scoreview'] == 0, 2, 'back to the cards')
-                tap('Left'); tap('Right'); time.sleep(.2); tap('Return'); until(lambda s: s['scoreview'] == 1, 2, 'table from its card')
-                time.sleep(.2); shot('13-score-card.png'); tap('x'); until(lambda s: s['scoreview'] == 0, 2, 'cards')
-                print('PASS: the high-score card on the menu opens the table')
+                tap('Escape'); until(lambda s: s['scoreview'] == 0 and s['menu'] == 1, 2, 'back to the map')
+                hold('Left'); until(lambda s: s['mapat'] == 0, 8, 'walk home'); release('Left')
+                until(lambda s: s['mapto'] < 0, 3, 'standing at home')
+                tap('Return'); until(lambda s: s['scoreview'] == 1, 2, 'the table at home')
+                time.sleep(.2); shot('14-home-scores.png'); tap('x'); until(lambda s: s['scoreview'] == 0, 2, 'map')
+                print('PASS: walking home on the map opens the table')
                 tap('q'); game.wait(timeout=3)
                 assert game.returncode == 0
             errs = (base / 'err').read_text()

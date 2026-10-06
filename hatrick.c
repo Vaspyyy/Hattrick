@@ -4,8 +4,8 @@
 // Up + cap throws upward, Down + C throws downward in the air.
 // Gamepads use the Super Mario Odyssey layout (see padkeys).
 // F1 opens the movement playground. Up spins on the ground; C recalls an out cap.
-// R restarts the level, M mutes, Esc opens the destination menu / resumes.
-// Enter or Jump chooses a destination; Q quits. Controller Start opens the menu.
+// R restarts the level, M mutes, Esc pauses / resumes. On the overworld map the arrows walk
+// between stops and Enter or Jump plays one; Q quits. Controller Start pauses.
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include "gfx.h"
@@ -49,7 +49,6 @@ typedef unsigned u32;
 #define START (1<<22)
 #define QUIT (1<<23)
 #define MENUBACK (1<<24)
-#define MENUN (NLV + (PLAY >= 0) + 1)   // levels, the playground, high scores
 #define GPJUMP_V 1400
 enum { NORM, LONGJ, GPWIND, GPSLAM, GPLAND, DIVE, SLIDE, ROLL, SPINJ, GSPIN, HANG, CLIMB, TUBE, DEAD, WIN };   // TUBE and up: untouchable
 enum { CAPFORWARD, CAPUP, CAPDOWN, CAPSPIN };
@@ -62,7 +61,7 @@ static int duck, catcht, catchok, twirl, gpspin, rollbuf;
 static int arcg, runt, rundir, launch, boostt, capbuf, capkeys, capextend, capreflect;
 static int ledget, climbx, climby, slopedir, poundt;
 static int lvl, deaths, coins, lcoins, tim, shake, done, prevk, fr, capless, capoff;
-static int menu, menusel, menufr, menunav, menurepeat, resumable, quitting;
+static int menu, menufr, menunav, menurepeat, resumable, quitting;   // menu: the map (resumable 0) or the pause screen
 // Presentation only (never read by the game logic): camera, flips, squash and stretch.
 static int cxf, cyf, look, camgy;          // camera position and look-ahead in 1/256 px, last standing height
 static int spinlen, spind, sqv, turnt, lface, runph, vang, pgnd, pvy, dustt, rollph;
@@ -117,6 +116,7 @@ typedef struct {
 } Level;
 static Level *LV;
 static int NLV, NLEVEL, PLAY = -1;   // campaign levels, all levels, playground index (-1: none)
+static int levelgen;                 // counts level lists loaded, so the map knows when to rebuild
 static const char KNOWN[] = "#B^STo/\\|-M?C*%~:!0123456789@FKgbhnm(";   // every map character but space
 
 // What a map character becomes in the live map: 1 ground, 2 brick, 3 spikes, 4 stone, 5 spring,
@@ -292,7 +292,7 @@ static int parselevels(const char *text, const char *file) {
   Level *sorted = malloc(n * sizeof *sorted); int k = 0;   // campaign first, then labs, in file order
   for (int pass = 0; pass < 2; pass++) for (int i = 0; i < n; i++) if (out[i].lab == pass) sorted[k++] = out[i];
   free(out); free(LV);
-  LV = sorted; NLV = camp; NLEVEL = n; PLAY = n > camp ? n-1 : -1;
+  LV = sorted; NLV = camp; NLEVEL = n; PLAY = n > camp ? n-1 : -1; levelgen++;
   return 1;
 }
 static int readlevels(const char *path) {
@@ -538,11 +538,11 @@ static int tubecheck(int k, int dir, int X, int Y, int vy0) {   // enter a tube 
 
 // ---------- the course clear ----------
 // Hatrick slides down the pole with the flag, poses, the time left on the timer is counted into the
-// score, then the next level. A new jump press skips straight to the end of all of it.
+// score, then back to the map. A new jump press skips straight to the end of all of it.
+static void tomap(void);
 static void nextlevel(void) {
-  if (lvl >= NLV) load();
-  else if (lvl < NLV-1) { lvl++; lcoins = coins; lscore = score; lstart = tim; load(); }
-  else done = 1;
+  if (lvl == NLV-1) done = 1;   // the final level: the end of the run, then the map
+  else tomap();
 }
 static void win(int pr) {
   stt++;
@@ -566,11 +566,11 @@ static void win(int pr) {
     }
   } else if (wphase == 3 && ++wt == 45) nextlevel();
 }
-// ---------- moon coins: which ones were ever brought to a flag, by level name, in ~/.hatrick_moons ----------
-// Lines "<bits> <LEVEL NAME>" (bit i = the level's i-th moon coin). HATRICK_MOONS names another
-// file; the simulator and tests only ever use that.
-static struct { char name[40]; int bits; } moons[64];
-static int nmoons;
+// ---------- progress: levels cleared and moon coins brought home, by level name, in ~/.hatrick_progress ----------
+// Lines "<bits> <LEVEL NAME>": bits 1, 2, 4 the level's moon coins (reading order), 8 the level cleared.
+// HATRICK_PROGRESS names another file; the simulator and tests only ever use that.
+static struct { char name[40]; int bits; } prog[64];
+static int nprog;
 static const char *savepath(const char *env, const char *file) {
   static char p[1100];
   const char *e = getenv(env), *home = getenv("HOME");
@@ -582,39 +582,43 @@ static const char *savepath(const char *env, const char *file) {
   snprintf(p, sizeof p, "%s/%s", home, file);
   return p;
 }
-static void moonload(void) {
-  const char *p = savepath("HATRICK_MOONS", ".hatrick_moons"); FILE *f = p ? fopen(p, "r") : 0;
+static void progload(void) {
+  const char *p = savepath("HATRICK_PROGRESS", ".hatrick_progress"); FILE *f = p ? fopen(p, "r") : 0;
   char line[128];
-  nmoons = 0;
-  while (f && nmoons < 64 && fgets(line, sizeof line, f)) {
+  nprog = 0;
+  while (f && nprog < 64 && fgets(line, sizeof line, f)) {
     char *name; int bits = (int)strtol(line, &name, 10);
     while (*name == ' ') name++;
     name[strcspn(name, "\r\n")] = 0;
-    if (*name && bits > 0) snprintf(moons[nmoons].name, sizeof moons[0].name, "%s", name), moons[nmoons++].bits = bits & 7;
+    if (*name && bits > 0) snprintf(prog[nprog].name, sizeof prog[0].name, "%s", name), prog[nprog++].bits = bits & 15;
   }
   if (f) fclose(f);
 }
-static int moonbits(int l) {   // the moon coins of level l already brought home
-  for (int i = 0; i < nmoons; i++) if (!strcmp(moons[i].name, LV[l].name)) return moons[i].bits;
+static int progbits(int l) {
+  for (int i = 0; i < nprog; i++) if (!strcmp(prog[i].name, LV[l].name)) return prog[i].bits;
   return 0;
 }
-static void moonkeep(int l, int bits) {   // adds bits to level l's record and saves the file
-  if (!bits || (moonbits(l) | bits) == moonbits(l)) return;
-  int i = 0; while (i < nmoons && strcmp(moons[i].name, LV[l].name)) i++;
-  if (i == nmoons) { if (nmoons == 64) return; nmoons++; snprintf(moons[i].name, sizeof moons[0].name, "%s", LV[l].name); moons[i].bits = 0; }
-  moons[i].bits |= bits;
-  const char *p = savepath("HATRICK_MOONS", ".hatrick_moons"); FILE *f = p ? fopen(p, "w") : 0;
-  if (!f) { if (p) fprintf(stderr, "hatrick: cannot save the moon coins to %s\n", p); return; }
-  for (int j = 0; j < nmoons; j++) fprintf(f, "%d %s\n", moons[j].bits, moons[j].name);
+static int moonbits(int l) { return progbits(l) & 7; }   // the moon coins of level l already brought home
+static int cleared(int l) { return progbits(l) >> 3 & 1; }
+static void progkeep(int l, int bits) {   // adds bits to level l's record and saves the file
+  if ((progbits(l) | bits) == progbits(l)) return;
+  int i = 0; while (i < nprog && strcmp(prog[i].name, LV[l].name)) i++;
+  if (i == nprog) { if (nprog == 64) return; nprog++; snprintf(prog[i].name, sizeof prog[0].name, "%s", LV[l].name); prog[i].bits = 0; }
+  prog[i].bits |= bits;
+  const char *p = savepath("HATRICK_PROGRESS", ".hatrick_progress"); FILE *f = p ? fopen(p, "w") : 0;
+  if (!f) { if (p) fprintf(stderr, "hatrick: cannot save the progress to %s\n", p); return; }
+  for (int j = 0; j < nprog; j++) fprintf(f, "%d %s\n", prog[j].bits, prog[j].name);
   fclose(f);
 }
 
+static int firstclear;   // the level just finished was cleared for the first time: its path opens on the map
 static void touchflag(int Y) {
   int top = gy*8, h = gb - top, f = h > 0 ? (gb - (Y+11)) * 100 / h : 100;
   st = WIN; stt = 0; hvx = hvy = 0; hx = gx*8-3 << 8; sfx(S_CLEAR); rumble(8);
   split = tim - lstart; wphase = wt = 0; flagy = top+1; skipclear = 0;
   tally = left / 60;   // whole seconds left
-  if (lvl < NLV) moonkeep(lvl, wd.moongot);   // the moon coins count once they reach a flag
+  firstclear = lvl < NLV && !cleared(lvl);
+  if (lvl < NLV) progkeep(lvl, wd.moongot | 8);   // cleared; the moon coins count once they reach a flag
   addscore(f >= 90 ? 5000 : f >= 65 ? 2000 : f >= 40 ? 800 : f >= 20 ? 400 : 100, gx*8+8, Y);
 }
 
@@ -1098,46 +1102,152 @@ static void nametick(int k, int pr) {
   else if ((pr & 16 && namepos < 2)) namepos++, sfx(S_MENUMOVE);
   else if (pr & (16|START)) {
     hiload(); hinew = hiinsert(initials, score); hisave();
-    naming = 0; menu = 1; resumable = 0; scoreview = 1; menusel = MENUN-1; menufr = 0;
-    lvl = deaths = lcoins = score = lscore = lstart = tim = done = donet = 0; load();
+    naming = 0; tomap(); scoreview = 1;
     sfx(S_MENUOK);
   }
 }
 
-static void destination(int choice) {
-  if (choice == MENUN-1) { scoreview = 1; hinew = -1; hiload(); menufr = 0; sfx(S_MENUOK); return; }   // the high-score card
-  lvl = choice == NLV ? PLAY : choice;
-  deaths = coins = lcoins = score = lscore = lstart = tim = done = donet = shake = rumq = 0;
+// ---------- the overworld ----------
+// An island with Hatrick's house (the high-score board), one stop per campaign level along a
+// winding path, and the movement playground below the house. A level's stop opens once the
+// one before it is cleared. It is laid out from the level list, so any number of levels fits.
+// Positions are map px: the map is 144 high and as wide as the levels need.
+enum { N_HOUSE, N_LEVEL, N_PLAY };
+typedef struct { int x, y, kind, lvl; } Node;
+static Node *node;
+static int nnode, mapw;
+static int mapgen;           // the level list the map was built for (levelgen)
+static u8 *land;             // per map px: 0 sea, 1 shallows, 2 sand, 3 grass
+static int mapat, mapto = -1, mapt, mapgoal = -1, unlockt, unlocknode = -1, pausesel;
+static int edgeoff(int a, int b) { return (a + b) & 1 ? 7 : -7; }   // how far a path between two stops bows
+static void pathpt(int a, int b, int t, int *x, int *y) {   // t 0..256 from stop a to stop b
+  *x = node[a].x + (node[b].x - node[a].x) * t / 256;
+  *y = node[a].y + (node[b].y - node[a].y) * t / 256 + SIN[t >> 1] * edgeoff(a, b) / 256;
+}
+static int nodeof(int l) { return l >= 0 && l < NLV ? 1 + l : l == PLAY && PLAY >= 0 ? nnode - 1 : 0; }
+static int nodeopen(int n) { return node[n].kind != N_LEVEL || node[n].lvl == 0 || cleared(node[n].lvl - 1); }
+static int neighbours(int n, int *out) {   // the stops a path leads to from n
+  int k = 0;
+  if (node[n].kind == N_HOUSE) { if (NLV) out[k++] = 1; if (PLAY >= 0) out[k++] = nnode - 1; }
+  else if (node[n].kind == N_PLAY) out[k++] = 0;
+  else { out[k++] = n - 1; if (n < NLV) out[k++] = n + 1; }
+  return k;
+}
+static void mapbuild(void) {
+  if (mapgen == levelgen && node) return;
+  mapgen = levelgen; free(node); free(land);
+  nnode = 1 + NLV + (PLAY >= 0);
+  node = calloc(nnode, sizeof *node);
+  node[0] = (Node){ 28, 70, N_HOUSE, -1 };
+  for (int i = 0; i < NLV; i++) node[1+i] = (Node){ 80 + i*56, 74 + SIN[(i*80 + 70) & 255] * 22 / 256, N_LEVEL, i };
+  if (PLAY >= 0) node[nnode-1] = (Node){ 40, 120, N_PLAY, PLAY };
+  mapw = NLV ? node[NLV].x + 56 : 0; if (mapw < W) mapw = W;
+  land = calloc(mapw * H, 1);
+  int np = 0, *px = malloc(sizeof(int) * 4096), *py = malloc(sizeof(int) * 4096);   // points the island is grown around
+  for (int n = 0; n < nnode; n++) {
+    px[np] = node[n].x; py[np++] = node[n].y;
+    int nb[4], k = neighbours(n, nb);
+    for (int j = 0; j < k; j++) if (nb[j] > n) for (int t = 16; t < 256 && np < 4096; t += 16) pathpt(n, nb[j], t, px + np, py + np), np++;
+  }
+  for (int y = 0; y < H; y++) for (int x = 0; x < mapw; x++) {
+    int best = 1 << 30;
+    for (int i = 0; i < np; i++) { int dx = x - px[i], dy = (y - py[i]) * 3 / 2, d = dx*dx + dy*dy; if (d < best) best = d; }
+    int r = 24 + (SIN[(x*5 + y*3) & 255] + SIN[(x*2 - y*7) & 255]) / 96;   // a ragged coast
+    land[y*mapw + x] = best < r*r ? 3 : best < (r+4)*(r+4) ? 2 : best < (r+8)*(r+8) ? 1 : 0;
+  }
+  free(px); free(py);
+}
+static void mapstart(void) {   // Hatrick stands at the first level not cleared yet (or the last one)
+  mapbuild();
+  mapat = NLV ? nodeof(NLV-1) : 0;
+  for (int i = NLV-1; i >= 0; i--) if (!cleared(i)) mapat = nodeof(i);
+  mapto = mapgoal = -1;
+}
+static void startlevel(int l) {
+  if (l == 0) deaths = coins = lcoins = score = lscore = lstart = tim = 0;   // level 1 starts a new run
+  else lcoins = coins, lscore = score, lstart = tim;
+  lvl = l; done = donet = shake = rumq = 0; scoreview = 0;
   for (P *p = pt; p < pt+NP; p++) p->l = 0;
   menu = 0; resumable = 1; load(); sfx(S_MENUOK);
 }
-static void openmenu(int k) {
-  menu = 1; menusel = lvl >= NLV ? NLV : lvl; sfx(S_PAUSE);
-  menunav = 0; menurepeat = 0; menufr = 0;
-  // Don't move the selection just because movement was held when pausing.
-  int axis = moveaxis(k);
-  menunav = k & 12 ? (k & 8 ? 3 : -3) : axis > 128 ? 1 : axis < -128 ? -1 : 0;
-  menurepeat = 18;
+static void tomap(void) {   // back on the map, at the stop of the level just played
+  mapbuild();
+  menu = 1; resumable = 0; done = donet = 0; menufr = 0;
+  mapat = nodeof(lvl); mapto = mapgoal = -1;
+  if (firstclear && lvl < NLV-1) unlocknode = mapat + 1, unlockt = 70;   // the path to the next stop opens
+  firstclear = 0;
 }
-static void menutick(int k, int pr) {
+static void mapenter(void) {
+  const Node *n = node + mapat;
+  if (n->kind == N_HOUSE) { scoreview = 1; hinew = -1; hiload(); menufr = 0; sfx(S_MENUOK); }
+  else startlevel(n->lvl);
+}
+static int mapstep(int from, int to) {   // the next stop on the way from one stop to another (the paths form a tree)
+  int seen[nnode], prev[nnode], q[nnode], h = 0, t = 0, nb[4];
+  for (int i = 0; i < nnode; i++) seen[i] = 0;
+  q[t++] = from; seen[from] = 1;
+  while (h < t) {
+    int n = q[h++], k = neighbours(n, nb);
+    for (int j = 0; j < k; j++) if (!seen[nb[j]] && nodeopen(nb[j])) seen[nb[j]] = 1, prev[nb[j]] = n, q[t++] = nb[j];
+  }
+  if (!seen[to] || to == from) return -1;
+  while (prev[to] != from) to = prev[to];
+  return to;
+}
+static void mapwalk(int to) { if (to >= 0 && to != mapat && nodeopen(to)) mapto = to, mapt = 0, sfx(S_MENUMOVE); }
+static void mapclick(int n) {   // the mouse: a stop clicked on the map
+  if (n < 0 || mapto >= 0) { if (n >= 0) mapgoal = n; return; }
+  if (n == mapat) mapenter();
+  else if (mapstep(mapat, n) >= 0) mapgoal = n, mapwalk(mapstep(mapat, n));
+}
+static void maptick(int k, int pr) {
+  mapbuild();
   menufr++;
-  if (scoreview) {   // the table: any button goes back to the cards
+  if (unlockt) unlockt--;
+  if (scoreview) {   // the table: any button goes back to the map
     if (pr & (16|32|START|BACK|MENUBACK)) scoreview = 0, hinew = -1, sfx(S_MENUBACK);
     return;
   }
-  if (pr & BACK) { if (resumable) menu = 0, sfx(S_MENUBACK); else quitting = 1; return; }
-  if (pr & MENUBACK) { if (resumable) menu = 0, sfx(S_MENUBACK); return; }
-  if (pr & 32 && resumable) { menu = 0; sfx(S_MENUBACK); return; }
-  if (pr & (16|START)) { destination(menusel); return; }
-  if (pr & PRACTICE && PLAY >= 0) { destination(NLV); return; }
-  int axis = moveaxis(k);
-  int nav = k & 12 ? (k & 8 ? 3 : -3) : axis > 128 ? 1 : axis < -128 ? -1 : 0;
+  if (mapto >= 0) {   // walking along a path
+    int dx = node[mapto].x - node[mapat].x, dy = node[mapto].y - node[mapat].y, len = iabs(dx) + iabs(dy);
+    if ((mapt += len > 0 ? 400 / len + 1 : 256) >= 256) {
+      mapat = mapto; mapto = -1; mapt = 0;
+      if (mapgoal >= 0 && mapgoal != mapat) mapwalk(mapstep(mapat, mapgoal)); else mapgoal = -1;
+    }
+    return;
+  }
+  if (pr & BACK) { quitting = 1; return; }   // Esc on the map quits, as on any title screen
+  if (pr & (16|START)) { mapenter(); return; }
+  if (pr & PRACTICE && PLAY >= 0) { startlevel(PLAY); return; }
+  int axis = moveaxis(k), dx = axis > 128 ? 1 : axis < -128 ? -1 : 0, dy = k & 4 ? -1 : k & 8 ? 1 : 0;
+  if (dx || dy) {   // the path that leaves most nearly in the held direction
+    int nb[4], n = neighbours(mapat, nb), best = -1, bestdot = 0;
+    for (int j = 0; j < n; j++) {
+      int vx = node[nb[j]].x - node[mapat].x, vy = node[nb[j]].y - node[mapat].y, len = iabs(vx) + iabs(vy) + 1;
+      int dot = (vx*dx + vy*dy) * 256 / len;
+      if (nodeopen(nb[j]) && dot > 90 && dot > bestdot) best = nb[j], bestdot = dot;
+    }
+    mapgoal = -1; mapwalk(best);
+  }
+}
+// The pause screen over the frozen level: continue, or back to the map.
+static void openmenu(int k) {
+  menu = 1; pausesel = 0; menufr = 0; sfx(S_PAUSE);
+  menunav = k & 12 ? (k & 8 ? 1 : -1) : 0;   // a direction held while pausing doesn't move the choice
+  menurepeat = 18;
+}
+static void pausetick(int k, int pr) {
+  menufr++;
+  if (pr & (BACK|MENUBACK|32)) { menu = 0; sfx(S_MENUBACK); return; }
+  if (pr & (16|START)) { if (pausesel) tomap(), sfx(S_MENUOK); else menu = 0, sfx(S_MENUBACK); return; }
+  int axis = moveaxis(k), nav = k & 12 ? (k & 8 ? 1 : -1) : axis > 128 ? 1 : axis < -128 ? -1 : 0;
   if (nav && (nav != menunav || --menurepeat <= 0)) {
-    menusel = (menusel+nav+MENUN) % MENUN; sfx(S_MENUMOVE);
+    pausesel = !pausesel; sfx(S_MENUMOVE);
     menurepeat = nav != menunav ? 18 : 6;
   }
   menunav = nav;
 }
+static void menutick(int k, int pr) { if (resumable) pausetick(k, pr); else maptick(k, pr); }
 static void tick(int k) {
   int pr = k & ~prevk;
   prevk = k;
@@ -1148,11 +1258,12 @@ static void tick(int k) {
   if (naming) { nametick(k, pr); return; }
   if (menu) { menutick(k, pr); return; }
   if (pr & (BACK|START)) { openmenu(k); return; }
-  if (pr & PRACTICE && PLAY >= 0) { lvl = lvl >= NLV ? 0 : PLAY; done = lcoins = 0; load(); return; }
-  if (pr & 64) { if (done) lvl = deaths = lcoins = score = lscore = lstart = tim = done = donet = 0; load(); return; }
+  if (pr & PRACTICE && PLAY >= 0) { if (lvl == PLAY) tomap(); else startlevel(PLAY); return; }   // F1: the playground and back
+  if (pr & 64) { if (done) tomap(); else load(); return; }
   fr++;
   if (!done) tim++;
   else if (++donet == 150 && lvl < NLV) { hiload(); if (hiqualifies(score)) naming = 1, namepos = 0, menunav = 0, menufr = 0, sfx(S_BONUS); }
+  else if (donet >= 330) { tomap(); return; }   // no new high score: back to the map
   if (shake) shake--;
   oldhy = hy;
   objects();
@@ -1315,99 +1426,33 @@ static void hudtext(const char *s,int x,int y,u32 c) {   // bold menu type with 
     if((dx<0?-dx:dx>1?dx-1:0)+(dy<0?-dy:dy>1?dy-1:0)>=2&&(dx<0?-dx:dx>1?dx-1:0)+(dy<0?-dy:dy>1?dy-1:0)<=3)menutext(s,x+dx,y+dy,1,0x14100c);
   for(int i=0;i<4;i++)menutext(s,x+(i&1),y+(i>>1),1,c);
 }
-static int menuhit(int x,int y) {
-  int page=menusel/6*6;
-  for(int i=0;i<6 && page+i<MENUN;i++) {
-    int cx=22+i%3*73,cy=62+i/3*32;
-    if(x>=cx && x<cx+66 && y>=cy && y<cy+27)return page+i;
-  }
-  return -1;
-}
-static void mcloud(int x,int y,int w) {
-  mround(x,y+7,w,10,5,0xd9edf2);
-  mellipse(x+w/3,y+7,w/6,7,0xffffef);mellipse(x+w*2/3,y+8,w/5,8,0xffffef);
-  mround(x+2,y+9,w-4,6,3,0xffffef);
-}
 static void mhat(int x,int y) {
   mround(x+3,y,20,10,4,0x733431);mround(x+4,y+1,18,8,3,0xf07b35);
   mround(x,y+7,30,5,2,0x733431);mround(x+1,y+7,28,3,1,0xffa449);
   mrect(x+7,y+3,9,1,0xffce77);mrect(x+5,y+6,17,2,0xa5482d);
 }
-static void menupreview(int card,int x,int y) {
-  u32 sky=card==CARD_BRICKS?0x7da8d3:card==CARD_SKY?0x546cbe:0x6cb9e7;
-  for(int row=0;row<45;row++)mrect(x,y+row,186,1,mixcolor(sky,0xbde6ee,row,70));
-  mcloud(x+12,y+4,43);mcloud(x+112,y+2,53);
-  for(int u=0;u<186;u++) {
-    int a=(u+21)%120-60,h=21+a*a/180;
-    if(h<45)mrect(x+u,y+h,1,45-h,0x8dc983);
-    int b=(u+70)%110-55,near=30+b*b/190;
-    if(near<45)mrect(x+u,y+near,1,45-near,0x5aaa66);
-  }
-  if(card==CARD_SKY) {
-    for(int i=0;i<3;i++) {
-      int xx=x+23+i*52,yy=y+32-i*9;
-      mround(xx,yy,42,8,4,0xaccde9);mround(xx,yy-2,42,7,3,0xffffed);
-      mrect(xx+8,yy-3,26,1,0xffffff);
-    }
-    for(int i=0;i<4;i++){int xx=x+74+i*25,yy=y+7+(i&1)*5;mline(xx-2,yy,xx+2,yy,0xfff1bb);mline(xx,yy-2,xx,yy+2,0xfff1bb);}
-  } else {
-    mrect(x,y+36,186,9,0x9b623f);mrect(x,y+33,186,3,0x327d4f);mrect(x,y+32,186,1,0xb9e381);
-    for(int u=0;u<186;u+=7)mrect(x+u,y+36+(u%3),2,1,0xc2864e);
-    if(card==CARD_BRICKS)for(int i=0;i<5;i++) {
-      int xx=x+50+i*23,yy=y+27-(i&1)*8;
-      mrect(xx,yy,21,11,0x9f4e39);mrect(xx+1,yy+1,19,9,0xda8d50);
-      mrect(xx+2,yy+1,17,1,0xffcd83);mrect(xx+10,yy+2,1,7,0xae603d);
-    }
-    if(card==CARD_SPIKES)for(int i=0;i<6;i++) {
-      int xx=x+59+i*14;
-      for(int v=0;v<9;v++){mrect(xx-v/2,y+25+v,v+1,1,0x4c6383);mrect(xx-v/2,y+25+v,v/2+1,1,0xe8f4f3);}
-    }
-    if(card==CARD_CASTLE) {
-      mrect(x+109,y+9,50,25,0x637e9d);mrect(x+111,y+10,46,24,0xb9c7cd);
-      for(int row=0;row<3;row++)for(int i=0;i<4;i++)mrect(x+112+i*12+(row&1)*5,y+13+row*8,9,1,0x90a5b6);
-      for(int i=0;i<4;i++){mrect(x+108+i*14,y+4,9,7,0x6a849e);mrect(x+109+i*14,y+4,7,5,0xdde6dc);}
-      mround(x+129,y+22,12,15,5,0x405c7a);mrect(x+134,y+27,1,8,0x1f3e61);
-      mline(x+142,y+4,x+142,y-1,0xffefc5);mrect(x+143,y-1,9,3,0xe56c59);
-    }
-    if(card==CARD_PLAYGROUND) {
-      for(int u=0;u<63;u++) {int h=u<33?u/3:(62-u)/3;mrect(x+89+u,y+32-h,1,h+1,0x368950);mrect(x+89+u,y+31-h,1,1,0xb5e687);}
-      mrect(x+148,y+24,24,9,0x829daf);mrect(x+148,y+23,24,2,0xc7d8d4);
-    }
-    if(card==NCARD) {   // the high-score card: a trophy on a little podium
-      mrect(x+70,y+26,46,7,0x8a5c1c);mrect(x+72,y+26,42,2,0xf0c860);
-      mround(x+80,y+3,26,16,7,0xc8902e);mround(x+82,y+4,22,13,6,0xf0c860);mrect(x+86,y+6,4,8,0xfff0b0);
-      mrect(x+90,y+18,6,5,0xc8902e);mrect(x+85,y+22,16,4,0xa87424);
-      mellipse(x+79,y+9,3,4,0xa87424);mellipse(x+107,y+9,3,4,0xa87424);
-      for(int i=0;i<3;i++){int xx=x+30+i*55,yy=y+10+(i&1)*6;mline(xx-2,yy,xx+2,yy,0xfff1bb);mline(xx,yy-2,xx,yy+2,0xfff1bb);}
-    }
-    if(card==CARD_HILLS) {
-      mline(x+139,y+15,x+139,y+33,0x466983);mline(x+140,y+15,x+140,y+33,0xfff5c7);
-      for(int u=0;u<16;u++)mrect(x+141+u,y+15,1,7-u/3,0xe76d5b);
-      for(int i=0;i<3;i++){int xx=x+64+i*14;mline(xx,y+29,xx,y+32,0x378552);mellipse(xx,y+27,2,2,0xffec9f);mrect(xx,y+27,1,1,0xe99554);}
-    }
+static void darken(int keep) {   // dims the whole picture to keep/256, under a panel
+  for (int y = 0; y < SH; y++) for (int x = 0; x < SW; x++) {
+    u32 c = big[y][x];
+    big[y][x] = ((c >> 16 & 255) * keep >> 8) << 16 | ((c >> 8 & 255) * keep >> 8) << 8 | (c & 255) * keep >> 8;
   }
 }
-static void menudais(void) {
-  // Tiny dais decorations. No control hints are drawn on the menu.
-  for(int side=0;side<2;side++) {
-    int x=side?710:58;
-    mline(x,403,x,425,0x66a16c);mellipse(x-3,414,4,2,0x83bc83);
-    mellipse(x,400,5,5,0xf3c4b7);mellipse(x,400,2,2,0xffe3a4);
-  }
-  sprx(naming?HPOSE:HSTAND,12,10*256,142*256,0,0,256,256,HPAL);
-  sprx(GRUM1,8,246*256,142*256,1,0,256,256,GPAL);
+static void plaque(int x, int y, int w, int h) {   // a gold-edged navy panel (menu canvas px)
+  mround(x+3, y+4, w, h, 8, 0x0e1424); mround(x, y, w, h, 8, 0xffd894); mround(x+3, y+3, w-6, h-6, 6, 0xa67150);
+  mround(x+5, y+5, w-10, h-10, 5, 0x2c4162);
 }
-// The high-score board on the stage: the table, or the initials being entered.
+// The high-score board over the map: the table, or the initials being entered.
 static void menuscores(void) {
   char line[32];
   const char *title=naming?"NEW HIGH SCORE":"HIGH SCORES";
-  centered(title,155,1,0xdcecf0);centered(title,153,1,0x2b5075);
-  mround(150,180,468,186,8,0x4c5871);mround(147,176,468,186,8,0xe8e6d2);mround(150,179,462,180,6,0x2c4162);
+  darken(110);
+  plaque(204,22,360,62); hudtext(title,(MENUW-textwidth(title,1))/2,42,0xffd894);
+  plaque(150,100,468,300);
   if(naming) {
     snprintf(line,sizeof line,"%d",score);
-    centered(line,206,2,0xffd894);
+    centered(line,150,2,0xffd894);
     for(int i=0;i<3;i++) {
-      int x=384-75+i*57,y=270,active=i==namepos,bob=active?SIN[(menufr*6)&255]*3/256:0;
+      int x=384-75+i*57,y=250,active=i==namepos,bob=active?SIN[(menufr*6)&255]*3/256:0;
       char c[2]={initials[i],0};
       mround(x-6,y-8,48,58,6,active?0xffdb87:0x46607e);mround(x-4,y-6,44,54,5,active?0xeaaa5d:0x34506e);
       menutext(c,x+3,y+2+bob,2,active?0xfff3d1:0xc8d4dc);
@@ -1415,94 +1460,145 @@ static void menuscores(void) {
     }
     return;
   }
-  if(!nhi){centered("NO SCORES YET",260,1,0xc8d4dc);return;}
+  if(!nhi){centered("NO SCORES YET",240,1,0xc8d4dc);return;}
   for(int i=0;i<nhi;i++) {
-    int y=190+i*17; u32 c=i==hinew?0xffd894:0xf2efe0;
-    if(i==hinew)mrect(170,y-2,428,16,0x46607e);
+    int y=118+i*27; u32 c=i==hinew?0xffd894:0xf2efe0;
+    if(i==hinew)mrect(170,y-4,428,26,0x46607e);
     snprintf(line,sizeof line,"%d.",i+1);menutext(line,200+(i<9?18:0),y,1,c);
     menutext(hi[i].ini,270,y,1,c);
     snprintf(line,sizeof line,"%d",hi[i].score);menutext(line,570-textwidth(line,1),y,1,c);
   }
 }
-static void menurender(void) {
-  ox=oy=capless=capoff=0;
-  for(int y=0;y<MENUH;y++)mrect(0,y,MENUW,1,mixcolor(0x739fd1,0xbce2e1,y,MENUH));
-  // Quiet scenery behind the title and cards, with softer layers and tiny stars.
-  for(int x=58;x<MENUW-58;x++) {
-    int a=(x+36)%222-111,h=315+a*a/360;
-    if(h<378)mrect(x,h,1,378-h,0x83bb88);
+// The pause screen: the level stays in view, dimmed, under two choices.
+static void pauserender(void) {
+  static const char *const OPT[2] = { "CONTINUE", "EXIT TO MAP" };
+  darken(120);
+  plaque(234,96,300,240);
+  hudtext("PAUSED",(MENUW-textwidth("PAUSED",1))/2,124,0xffd894);
+  for (int i = 0; i < 2; i++) {
+    int y = 186 + i*64, on = i == pausesel;
+    mround(270, y, 228, 44, 6, on ? 0xffdb87 : 0x46607e); mround(272, y+2, 224, 40, 5, on ? 0xeaaa5d : 0x34506e);
+    menutext(OPT[i], 384 - textwidth(OPT[i], 1)/2, y+12, 1, on ? 0xfff3d1 : 0xc8d4dc);
+    if (on) mhat(232, y+12 + SIN[(menufr*5) & 255]*2/256);
   }
-  for(int i=0;i<12;i++) {
-    int x=83+i*51,y=140+(i%3)*7;
-    mrect(x,y,1,1,0xddebe1);
+}
+static int pausehit(int x, int y) {   // which choice is under the mouse (window px), or -1
+  x = x * MENUW / SW; y = y * MENUH / SH;
+  for (int i = 0; i < 2; i++) if (x >= 270 && x < 498 && y >= 186 + i*64 && y < 230 + i*64) return i;
+  return -1;
+}
+
+// ---------- drawing the overworld (map px; the camera scrolls along it) ----------
+static int mapcam;
+static void mrectw(int x, int y, int w, int h, u32 c) { for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) wpx(x+i, y+j, c); }
+static void mdisc(int cx, int cy, int r, u32 c) { for (int y = -r; y <= r; y++) for (int x = -r; x <= r; x++) if (x*x + y*y <= r*r + r) wpx(cx+x, cy+y, c); }
+static void landmark(const Node *n, int open) {   // the little scene beside each stop, after its level's card
+  int x = n->x + 7, y = n->y - 4, card = n->kind == N_HOUSE ? -1 : n->kind == N_PLAY ? CARD_PLAYGROUND : LV[n->lvl].card;
+  u32 dim = open ? 0 : 1;
+  #define C(c) (dim ? (((c) >> 1) & 0x7f7f7f) + 0x303840 : (c))
+  if (card == -1) {   // Hatrick's house: a cap for a roof
+    mrectw(x, y-8, 13, 9, C(0x3a2410)); mrectw(x+1, y-7, 11, 8, C(0xf4e6c8));
+    for (int j = 0; j < 6; j++) mrectw(x+6-j-(j > 4), y-15+j, 1+2*j+2*(j > 4), 1, C(j ? 0xff7a1c : 0x9a3c10));   // the crown
+    mrectw(x-2, y-9, 17, 2, C(0xc85a14)); mrectw(x-2, y-9, 17, 1, C(0xffa449));                                  // the brim mrectw(x+5, y-4, 3, 5, C(0x6a3a1a)); mrectw(x+2, y-6, 2, 2, C(0x6ab0e0)); mrectw(x+9, y-6, 2, 2, C(0x6ab0e0));
+  } else if (card == CARD_HILLS) {
+    for (int i = -7; i <= 7; i++) { int h = 7 - i*i/8; mrectw(x+7+i, y-h, 1, h+1, C(i < -2 ? 0x8be05a : 0x4cb83c)); }
+    mrectw(x+11, y-15, 1, 10, C(0xd8dde4)); mrectw(x+12, y-15, 4, 2, C(0xe8403a)); mrectw(x+12, y-13, 2, 1, C(0xe8403a));
+  } else if (card == CARD_BRICKS) {
+    for (int j = 0; j < 14; j++) for (int i = 0; i < 10; i++)
+      wpx(x+2+i, y-13+j, C(j % 4 == 3 || (i + (j/4 & 1)*3) % 5 == 4 ? 0x5a2410 : j % 4 == 0 ? 0xf09060 : 0xd0602a));
+    for (int i = 0; i < 10; i += 3) mrectw(x+2+i, y-15, 2, 2, C(0xd0602a));
+  } else if (card == CARD_SPIKES) {
+    for (int k = 0; k < 3; k++) { int h = 9 - (k == 1)*3; for (int j = 0; j < h; j++) { int w = (h - j) / 2; mrectw(x+3+k*5 - w, y - j, 2*w+1, 1, C(j == 0 ? 0x586070 : 0x9aa4b0)); wpx(x+3+k*5 - w, y - j, C(0xe0e6ee)); } }
+  } else if (card == CARD_SKY) {
+    mdisc(x+4, y-10, 3, C(0xffffff)); mdisc(x+8, y-12, 4, C(0xffffff)); mdisc(x+12, y-10, 3, C(0xffffff)); mrectw(x+3, y-9, 11, 3, C(0xffffff));
+    mrectw(x+3, y-3, 10, 3, C(0x9098a8)); mrectw(x+3, y-3, 10, 1, C(0xc8d0e0));
+  } else if (card == CARD_CASTLE) {
+    mrectw(x, y-14, 18, 15, C(0x586070)); mrectw(x+1, y-13, 16, 14, C(0x9098a8));
+    for (int i = 0; i < 18; i += 4) mrectw(x+i, y-17, 2, 3, C(0x9098a8));
+    mrectw(x+7, y-6, 4, 7, C(0x262a32)); mrectw(x+8, y-24, 1, 8, C(0xd8dde4)); mrectw(x+9, y-24, 5, 3, C(0xe8403a));
+    mrectw(x+3, y-10, 2, 2, C(0x262a32)); mrectw(x+13, y-10, 2, 2, C(0x262a32));
+  } else if (card == CARD_PLAYGROUND) {
+    for (int i = 0; i < 12; i++) mrectw(x+i, y - i*2/3, 1, i*2/3 + 1, C(i == 11 ? 0x8be05a : 0x4cb83c));
+    mrectw(x+13, y-5, 6, 6, C(0x9098a8)); mrectw(x+13, y-5, 6, 1, C(0xc8d0e0));
   }
-  // Velvet folds vary smoothly at the higher resolution; gold edging and fringe
-  // keep the storybook stage shape while giving it finer seams and highlights.
-  for(int side=0;side<2;side++)for(int y=0;y<378;y++) {
-    int width=y<129?66-y/7:48+(y-129)/12;
-    for(int u=0;u<width;u++) {
-      int wave=SIN[(u*256/24+side*28)&255]+256;
-      u32 c=mixcolor(0x84233e,0xe56365,wave,512);
-      int xx=side?MENUW-1-u:u;mrect(xx,y,1,1,c);
+  #undef C
+}
+static void maprender(void) {
+  mapbuild();
+  int hxm, hym;   // Hatrick on the map
+  if (mapto >= 0) pathpt(mapat, mapto, mapt, &hxm, &hym); else hxm = node[mapat].x, hym = node[mapat].y;
+  int want = hxm - W/2; if (want > mapw - W) want = mapw - W; if (want < 0) want = 0;
+  mapcam += (want - mapcam) / 6 + (want > mapcam) - (want < mapcam);
+  ox = mapcam * SC; oy = 0; capless = capoff = 0;
+  for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {   // sea, shallows, beach and grass
+    int mx = x + mapcam, l = mx < mapw ? land[y*mapw + mx] : 0;
+    u32 c = l == 3 ? ((mx*7 + y*13) % 29 ? 0x5cb860 : 0x4ca850) : l == 2 ? 0xf0d898 : l == 1 ? 0x6cc0e8 : 0x3a8fd8;
+    if (l == 0 && ((mx + menufr/6 + (y/6)*11) % 41) < 4 && y % 6 == 0) c = 0x8fd0ff;   // waves
+    if (l == 3 && y+1 < H && land[(y+1)*mapw + mx] == 2) c = 0x3e8f48;                 // a grass edge
+    wpx(mx, y, c);
+  }
+  for (int i = 0; i < mapw / 5; i++) {   // trees, away from the paths and stops
+    u32 hsh = i * 2654435761u; int x = hsh % mapw, y = 12 + (hsh >> 12) % 120;
+    if (land[y*mapw + x] != 3 || land[(y+6)*mapw + x] != 3) continue;
+    int clear = 1;
+    for (int n = 0; n < nnode && clear; n++) {
+      if (iabs(x - node[n].x) < 26 && iabs(y - node[n].y) < 22) clear = 0;
+      int nb[4], k = neighbours(n, nb);
+      for (int j = 0; j < k && clear; j++) for (int t = 0; t <= 256; t += 16) { int px, py; pathpt(n, nb[j], t, &px, &py); if (iabs(px - x) < 7 && iabs(py - y) < 9) clear = 0; }
     }
-    int edge=side?MENUW-width:width-1;
-    mrect(edge,y,1,1,0xffe7a8);mrect(edge+(side?1:-1),y,2,1,0xdca16a);
-    if(!(y%5))mrect(edge+(side?3:-3),y,1,2,0xf9d891);
+    if (!clear) continue;
+    mrectw(x-2, y+3, 5, 1, 0x3e8f48); mrectw(x, y, 1, 3, 0x6a3a1a);
+    mdisc(x, y-2, 3, 0x2e7a3c); mdisc(x-1, y-3, 2, 0x4cb83c); wpx(x-2, y-4, 0x8be05a);
   }
-  for(int x=0;x<MENUW;x++) {
-    int a=x%96-48,bottom=39-a*a/96;
-    for(int y=0;y<bottom;y++) {
-      int wave=SIN[(x*256/24)&255]+256;
-      mrect(x,y,1,1,y<5?0x742238:mixcolor(0x9c2e43,0xe97069,wave,512));
-    }
-    mrect(x,bottom,1,2,0xffe8ad);mrect(x,bottom+2,1,1,0xd69b67);
-    if(!(x%9))mround(x-1,bottom+3,3,5,1,0xffdca0);
-  }
-  // Stage boards and a restrained inlay replace the empty footer strip.
-  for(int y=372;y<MENUH;y++)mrect(0,y,MENUW,1,mixcolor(0x345171,0x263b58,y-372,60));
-  mrect(0,372,MENUW,2,0xffe1a0);mrect(0,374,MENUW,3,0xb47953);
-  for(int x=0;x<MENUW;x+=24)mrect(x,425,23,7,x&24?0x965351:0xaf665d);
-  mline(45,409,723,409,0x4a657e);mline(45,411,723,411,0x263b58);
-  // A gold-edged plaque, inset beads, and a shallow title extrusion.
-  mround(151,57,468,87,8,0x4c5871);mround(147,51,468,87,8,0xa67150);
-  mround(147,49,468,85,8,0xffd894);mround(150,52,462,79,6,0xc8615d);
-  mround(154,56,454,71,4,0x9b3e50);mround(156,58,450,67,3,0xc0515c);
-  mline(159,59,600,59,0xe78073);mline(159,123,600,123,0x913750);
-  for(int x=165;x<602;x+=16){mrect(x,54,2,1,0xffecc0);mrect(x,129,2,1,0xd8a16d);}
-  int tx=(MENUW-textwidth("HATRICK",3))/2;
-  menutext("HATRICK",tx+3,64,3,0x762b46);menutext("HATRICK",tx+2,62,3,0x8e3b4d);
-  menutext("HATRICK",tx,60,3,0xfff3d1);
-  if(naming||scoreview) {menuscores();menudais();return;}
-  centered("CHOOSE YOUR ADVENTURE",155,1,0xdcecf0);centered("CHOOSE YOUR ADVENTURE",153,1,0x2b5075);
-  int page=menusel/6*6;
-  for(int i=0;i<6 && page+i<MENUN;i++) {
-    int choice=page+i,x=66+i%3*219,y=186+i/3*96,active=choice==menusel;
-    mround(x+3,y+5,198,81,5,0x6684a0);
-    mround(x,y,198,81,5,active?0xad7244:0x56779a);
-    mround(x,y-1,198,79,5,active?0xffdb87:0xe8e6d2);
-    mround(x+2,y+1,194,75,3,active?0xeaaa5d:0x658baa);
-    menupreview(choice==MENUN-1?NCARD:LV[choice==NLV?PLAY:choice].card,x+6,y+5);
-    mrect(x+6,y+50,186,1,active?0xba884f:0x7694a4);
-    for(int row=0;row<24;row++)mrect(x+6,y+51+row,186,1,mixcolor(active?0xffedb2:0xfff5dc,active?0xf5d388:0xe7e8d7,row,32));
-    if(choice<NLV)for(int i=0;i<LV[choice].nmoon;i++) {   // the level's moon coins: gold once brought home
-      int got=moonbits(choice)>>i&1,mx=x+16+i*15,my=y+13;
-      mellipse(mx,my,6,6,0x2c3a66);mellipse(mx,my,5,5,got?0xdbe6ff:0x56679a);
-      if(got){mellipse(mx-1,my,3,4,0xf2c440);mellipse(mx+1,my-1,3,3,0xdbe6ff);}
-    }
-    const char *name=choice==MENUN-1?"HIGH SCORES":choice==NLV?"PLAYGROUND":LV[choice].name;
-    char number[12];snprintf(number,sizeof number,"%d",choice+1);
-    int width=textwidth(name,1);
-    if(width>186)name=number,width=textwidth(number,1);
-    menutext(name,x+(198-width)/2+1,y+54,1,0xd2c4a1);
-    menutext(name,x+(198-width)/2,y+53,1,0x2c4162);
-    // Fine corner studs and a floating cap keep the selected card easy to spot.
-    if(active) {
-      mrect(x+3,y+3,2,2,0xffffdf);mrect(x+193,y+3,2,2,0xffffdf);
-      mrect(x+3,y+72,2,2,0xffedb7);mrect(x+193,y+72,2,2,0xffedb7);
-      mhat(x+158,y+9+SIN[(menufr*5)&255]*2/256);
+  for (int n = 0; n < nnode; n++) {   // paths: sandy dots; the newest one draws itself in
+    int nb[4], k = neighbours(n, nb);
+    for (int j = 0; j < k; j++) {
+      int a = n, b = nb[j];
+      if (b < a || !nodeopen(a) || !nodeopen(b)) continue;
+      int upto = b == unlocknode && unlockt ? 256 - unlockt * 256 / 70 : 256;
+      for (int t = 12; t <= 244 && t <= upto; t += 14) { int px, py; pathpt(a, b, t, &px, &py); mrectw(px-1, py, 2, 2, 0xb8984c); mrectw(px-1, py-1, 2, 2, 0xf8e8b0); }
+      if (upto < 256) { int px, py; pathpt(a, b, upto, &px, &py); mdisc(px, py, 2, 0xfff3b0); }
     }
   }
-  menudais();
+  for (int n = 0; n < nnode; n++) landmark(node + n, nodeopen(n));
+  for (int n = 0; n < nnode; n++) {   // the stops: red to play, gold once cleared, grey still locked
+    const Node *d = node + n;
+    int open = nodeopen(n), done_ = d->kind == N_LEVEL && cleared(d->lvl), x = d->x, y = d->y;
+    mdisc(x, y+1, 5, 0x1a2a20); mdisc(x, y, 5, 0x24303c);
+    mdisc(x, y, 4, d->kind != N_LEVEL ? 0x5a8ad0 : !open ? 0x7a8496 : done_ ? 0xffd84a : 0xe8403a);
+    mdisc(x-1, y-1, 1, !open ? 0x9aa4b0 : 0xffffff);
+    if (done_) { mrectw(x+2, y-9, 1, 7, 0xd8dde4); mrectw(x+3, y-9, 3, 2, 0x2ec85a); }
+  }
+  {   // Hatrick, walking the run cycle along a path or idling on a stop
+    int walking = mapto >= 0, f = walking ? (menufr >> 3 & 1) : 0;
+    if (walking) face = node[mapto].x > node[mapat].x ? 1 : node[mapto].x < node[mapat].x ? -1 : face;
+    mrectw(hxm-3, hym+1, 7, 2, 0x24303c);
+    sprx(walking ? (f ? HRUN2 : HRUN1) : HSTAND, 12, (hxm << 8) + 128, (hym + 1 - (walking && f)) << 8, face < 0, 0, 256, 256, HPAL);
+  }
+  // the banner: where Hatrick stands
+  if (!naming && !scoreview) {
+    const Node *d = node + (mapto >= 0 ? mapto : mapat);
+    char t[64];
+    if (d->kind == N_HOUSE) snprintf(t, sizeof t, "HOME");
+    else if (d->kind == N_PLAY) snprintf(t, sizeof t, "PLAYGROUND");
+    else snprintf(t, sizeof t, "%d %s", d->lvl + 1, LV[d->lvl].name);
+    int w = textwidth(t, 1), nm = d->kind == N_LEVEL ? LV[d->lvl].nmoon : 0, pw = w + 60 + nm*26;
+    if (pw > 720) pw = 720;
+    plaque((MENUW - pw)/2, 12, pw, 52);
+    hudtext(t, (MENUW - pw)/2 + 30, 27, d->kind == N_LEVEL && cleared(d->lvl) ? 0xffd894 : 0xffffff);
+    for (int i = 0; i < nm; i++) {   // the level's moon coins: gold once brought home
+      int got = moonbits(d->lvl) >> i & 1, mx = (MENUW - pw)/2 + 30 + w + 22 + i*26, my = 38;
+      mellipse(mx, my, 10, 10, 0x0e1424); mellipse(mx, my, 8, 8, got ? 0xdbe6ff : 0x46607e);
+      if (got) { mellipse(mx-2, my, 5, 6, 0xf2c440); mellipse(mx+1, my-2, 5, 5, 0xdbe6ff); }
+    }
+  }
+  hudtext("HATRICK", 22, 392, 0xfff3d1);
+  if (naming || scoreview) menuscores();
+}
+static int maphit(int x, int y) {   // the stop under the mouse (window px), or -1
+  int mx = x / SC + mapcam, my = y / SC;
+  for (int n = 0; n < nnode; n++) if (iabs(mx - node[n].x) <= 7 && iabs(my - node[n].y) <= 7) return n;
+  return -1;
 }
 
 // Brass tubes: shading across a 16 px wide tube (a = 0..15), and the bands around it every 16 px.
@@ -1769,7 +1865,7 @@ static const u32 SPITPAL[3] = { 0xe0586a, 0xf4e6c0, 0x3a1424 };
 
 static void render(void) {
   const Level *L = LV + lvl;
-  if (menu || naming) { menurender(); return; }
+  if ((menu && !resumable) || naming) { maprender(); return; }
   camera();
   ox = cxf * SC >> 8;
   oy = (cyf * SC >> 8) + (shake ? (shake & 2 ? 2*SC : -2*SC) : 0);
@@ -1897,6 +1993,7 @@ static void render(void) {
     txt(I_STAR, 5, 25, 88, y+16, 2, 0xffd84a); num(score, 6, 102, y+16, 2, 0xffd84a);
     if (tally) { txt(FONT[12], 3, 15, 102, y+32, 2, 0xffffff); num(tally*50, 1, 110, y+32, 2, 0xffffff); }
   }
+  if (menu) pauserender();
 }
 
 #ifndef SIM
@@ -2102,20 +2199,20 @@ int main(int argc, char **argv) {
   struct timespec t;
   char km[32];
   int volume = 8, volkeys = 0;
-  load(); menu = 1; hiload(); moonload();
+  load(); menu = 1; hiload(); progload(); mapstart();
   clock_gettime(CLOCK_MONOTONIC, &t);
   for (;;) {
     while (XPending(d)) {
       XEvent e; XNextEvent(d, &e);
       if (e.type == ClientMessage && (Atom)e.xclient.data.l[0] == wmdelete) quitting = 1;
-      if (menu && !scoreview && (e.type == MotionNotify || (e.type == ButtonPress && e.xbutton.button == 1))) {
+      if (menu && !scoreview && !naming && (e.type == MotionNotify || (e.type == ButtonPress && e.xbutton.button == 1))) {
         int x = e.type == MotionNotify ? e.xmotion.x : e.xbutton.x;
         int y = e.type == MotionNotify ? e.xmotion.y : e.xbutton.y;
-        int hit = menuhit(x/SC,y/SC);
-        if (hit >= 0) {
-          if (menusel != hit) menusel = hit, sfx(S_MENUMOVE);
-          if (e.type == ButtonPress && !scoreview) destination(hit);
-        }
+        if (resumable) {   // the pause screen: hover picks, click chooses
+          int hit = pausehit(x, y);
+          if (hit >= 0 && hit != pausesel) pausesel = hit, sfx(S_MENUMOVE);
+          if (hit >= 0 && e.type == ButtonPress) { if (hit) tomap(), sfx(S_MENUOK); else menu = 0, sfx(S_MENUBACK); }
+        } else if (e.type == ButtonPress) mapclick(maphit(x, y));   // the map: click a stop to walk there, again to enter
       }
     }
     XQueryKeymap(d, km);

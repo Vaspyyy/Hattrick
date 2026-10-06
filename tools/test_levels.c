@@ -1,4 +1,4 @@
-// levels.txt loading checks (MODDING.md): header options, error reports, menu and playground.
+// levels.txt loading checks (MODDING.md): header options, error reports, the map and the playground.
 // gcc -O1 -w tools/test_levels.c -o /tmp/hatrick-level-tests && /tmp/hatrick-level-tests
 #define SIM
 #define SC 1
@@ -15,11 +15,12 @@ static int parse(const char *text) {   // parselevels with its reports captured 
   rewind(t); size_t n = fread(err, 1, sizeof err - 1, t); err[n] = 0; fclose(t);
   return ok;
 }
-static void fresh(void) { menu = 1; menusel = menufr = menunav = menurepeat = prevk = resumable = quitting = 0; lvl = 0; load(); }
+static void walk(int k) { tick(k); for (int i = 0; i < 300 && mapto >= 0; i++) tick(0); }
+static void fresh(void) { menu = 1; menufr = menunav = menurepeat = prevk = resumable = quitting = scoreview = 0; lvl = 0; load(); nprog = 0; mapstart(); }
 
 int main(void) {
   // the built-in copy matches the stock campaign
-  CHECK(NLV == 5 && NLEVEL == 7 && PLAY == 6 && MENUN == 7);   // + the high-score card
+  mapbuild(); CHECK(NLV == 5 && NLEVEL == 7 && PLAY == 6 && nnode == 7);   // home, five stops, the playground
   CHECK(!strcmp(LV[0].name, "HILLS") && !strcmp(LV[4].name, "HATRICK") && !strcmp(LV[6].name, "LAB MOVEMENT PLAYGROUND"));
   CHECK(!strcmp(LV[0].music, "overworld") && !strcmp(LV[1].music, "underground") && !strcmp(LV[4].music, "finale") && !strcmp(LV[6].music, "athletic"));
   CHECK(LV[0].card == CARD_HILLS && LV[1].card == CARD_BRICKS && LV[3].card == CARD_SKY && LV[6].card == CARD_PLAYGROUND);
@@ -32,7 +33,7 @@ int main(void) {
               "\n"
               "##  g   ###\n"
               "= 2 Second Try\n; a comment row is not a map row\n@ o F\n#####\n"));
-  CHECK(!*err && NLV == 2 && NLEVEL == 3 && PLAY == 2 && MENUN == 4);
+  mapbuild(); CHECK(!*err && NLV == 2 && NLEVEL == 3 && PLAY == 2 && nnode == 4);
   CHECK(!strcmp(LV[0].name, "FIRST") && !strcmp(LV[0].music, "my_song") && LV[0].card == CARD_SKY);
   CHECK(!strcmp(LV[1].name, "SECOND TRY") && !strcmp(LV[1].music, "overworld") && LV[1].card == CARD_HILLS);
   CHECK(!strcmp(LV[2].name, "LAB TEST ROOM") && LV[2].lab);
@@ -51,7 +52,7 @@ int main(void) {
   CHECK(strstr(err, "mod.txt:10: unknown option \"colour\""));
   CHECK(strstr(err, "mod.txt:10: unknown card \"lava\""));
   CHECK(strstr(err, "mod.txt:11: unknown tile 'Z' in column 6, left empty"));
-  CHECK(NLV == 2 && PLAY == -1 && MENUN == 3 && !strcmp(LV[1].name, "ODD") && LV[1].card == CARD_HILLS);
+  mapbuild(); CHECK(NLV == 2 && PLAY == -1 && nnode == 3 && !strcmp(LV[1].name, "ODD") && LV[1].card == CARD_HILLS);
   CHECK(LV[0].card == CARD_CASTLE);
 
   // too tall / too wide / too many enemies
@@ -67,21 +68,23 @@ int main(void) {
   CHECK(!parse("= lab only\n@ F\n#\n") && strstr(err, "no playable level") && NLV == 1 && !strcmp(LV[0].name, "FINE"));
   CHECK(!parse("") && NLV == 1);
 
-  // without a lab there is no playground: F1 and the menu ignore it
-  fresh(); tick(PRACTICE); CHECK(menu && lvl == 0);
+  // without a lab there is no playground: F1 and the map ignore it
+  fresh(); tick(PRACTICE); CHECK(menu && !resumable && lvl == 0); walk(8); CHECK(mapat == 0 || mapat == 1);
   menu = 0; resumable = 1; tick(0); tick(PRACTICE); CHECK(lvl == 0);
 
-  // many levels: the menu pages, every card is enterable, the last level ends the run
+  // many levels: the map grows to fit them, every stop is enterable, the last level ends the run
   char many[20000] = "";
   for (int i = 0; i < 13; i++) sprintf(many + strlen(many), "= %d level %d\n@ F\n###\n", i+1, i+1);
   strcat(many, "= lab play card=playground\n@  F\n####\n");
-  CHECK(parse(many) && NLV == 13 && PLAY == 13 && MENUN == 15);
-  for (int i = 0; i < MENUN-1; i++) {
-    fresh(); menusel = i; render(); tick(16);
-    CHECK(!menu && lvl == (i == NLV ? PLAY : i));
+  CHECK(parse(many) && NLV == 13 && PLAY == 13);
+  fresh(); CHECK(nnode == 15 && mapw > 13*56 && mapat == 1);
+  for (int i = 0; i < NLV; i++) progkeep(i, 8);
+  for (int n = 1; n < nnode; n++) {
+    fresh(); for (int i = 0; i < NLV; i++) progkeep(i, 8);
+    mapat = n; render(); tick(16);
+    CHECK(!menu && lvl == node[n].lvl);
   }
-  fresh(); tick(1); CHECK(menusel == 14); render();
-  fresh(); menusel = 14; tick(16); CHECK(menu && scoreview); render(); tick(0); tick(16); CHECK(menu && !scoreview);
+  fresh(); walk(1); CHECK(mapat == 0); render(); tick(16); CHECK(menu && scoreview); render(); tick(0); tick(16); CHECK(menu && !scoreview);
   lvl = 12; load(); menu = 0;
   for (int i = 0; i < 1500 && !done; i++) tick(i % 2 ? 2 : 0);
   CHECK(done && lvl == 12);

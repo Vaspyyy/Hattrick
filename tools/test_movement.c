@@ -332,7 +332,8 @@ static void remaining_combos(void) {
   for(int i=0;i<6;i++){tick(8);tick(8|32);}CHECK(hvx<=start);
   for(int i=0;i<15;i++)tick(8);start=hvx;tick(8|32);CHECK(hvx>start);
   lvl=0;load();prevk=0;tick(PRACTICE);CHECK(lvl==NLV+1 && !done && map[29][28]==8 && map[22][43]==9);
-  tick(0);tick(PRACTICE);CHECK(lvl==0 && !done);
+  tick(0);tick(PRACTICE);CHECK(menu && !resumable && !done); // F1 again: back to the map
+  menu=0;
 }
 static void terrain_moves(void) {
   for(int left=0;left<2;left++) {

@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory(prefix='hatrick-audio-test-') as tmp:
                             pass_fds=(writefd,), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.close(writefd)
     with os.fdopen(readfd) as displayfd:
-        env = dict(os.environ, DISPLAY=':' + displayfd.readline().strip(), HATRICK_AUDIO_LOG='1')
+        env = dict(os.environ, DISPLAY=':' + displayfd.readline().strip(), HATRICK_AUDIO_LOG='1', HOME=str(base))   # a fresh game, never the player's saves
     wav = base / 'mix.wav'
     game = None
     try:
@@ -56,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix='hatrick-audio-test-') as tmp:
         assert names[0] == 'overworld', 'the title menu starts the overworld theme'
         for want in ('menu_ok', 'jump', 'pause', 'menu_back'):
             assert want in names, f'missing sound: {want} ({names})'
-        assert names.count('overworld') >= 2, 'entering Hills restarts its theme from the top'
+        assert names.count('overworld') >= 2, f'entering Hills restarts its theme from the top ({names})'
         print('PASS: sound and theme events', ' '.join(names))
         # the mix: 32-bit float stereo WAV written by the engine
         data = wav.read_bytes()

@@ -164,8 +164,8 @@ int main(void) {
   tim = 600; lstart = 0; left = LIMIT - 601; place(13*8-3, 27*8-12); hvx = 300; run(2, 1);
   CHECK(st == WIN && score == 5000 && split == 601 && tally == 489 && left == LIMIT - 601);   // the very top; 489 s left
   int ticks = 0, f0 = flagy;
-  for (int i = 0; i < 400 && lvl == 0; i++) { tick(0); ticks += nsnd && sndq[0] == S_TICK; nsnd = 0; }
-  CHECK(lvl == 1 && st == NORM && score == 5000 + 489*50 && lscore == score && lstart > 600 && ticks >= 5 && f0 < gb && left == LIMIT - 1);   // the new level's timer, one frame in
+  for (int i = 0; i < 400 && !menu; i++) { tick(0); ticks += nsnd && sndq[0] == S_TICK; nsnd = 0; }
+  CHECK(menu && !resumable && mapat == 1 && cleared(0) && score == 5000 + 489*50 && ticks >= 5 && f0 < gb);   // back on the map
   // low on the pole, and skipped with Jump
   use("= 1 one\n"
       "             F\n"
@@ -179,8 +179,9 @@ int main(void) {
   place(13*8-3, 31*8-12); hvx = 300; run(2, 1);
   CHECK(st == WIN && score == 100 && tally == 500);
   run(0, 8); run(16, 1);
-  CHECK(lvl == 1 && st == NORM && score == 100 + 500*50 && skipclear);
+  CHECK(menu && !resumable && score == 100 + 500*50 && skipclear);
   // the last level ends the run
+  tick(0); mapat = 2; tick(16); CHECK(!menu && lvl == 1);
   for (int i = 0; i < 200 && st != WIN; i++) tick(2);
   CHECK(st == WIN);
   for (int i = 0; i < 400 && !done; i++) tick(0);
@@ -204,8 +205,8 @@ int main(void) {
   CHECK(parse("= 1 old par=90\n@ F\n###\n") && strstr(err, "par= is no longer used"));
 
   // ---- moon coins: three secret ones per level, kept once they reach the flag, saved by level name
-  char mpath[] = "/tmp/hatrick-moons-XXXXXX"; close(mkstemp(mpath)); setenv("HATRICK_MOONS", mpath, 1);
-  moonload(); CHECK(nmoons == 0);
+  char mpath[] = "/tmp/hatrick-progress-XXXXXX"; close(mkstemp(mpath)); setenv("HATRICK_PROGRESS", mpath, 1);
+  progload(); CHECK(nprog == 0);
   use("= 1 moony\n"
       "@ (   K  (      F\n"
       "################\n"
@@ -224,7 +225,7 @@ int main(void) {
   die(); run(0, 62); CHECK(wd.moongot == 1);                           // the checkpoint kept the first
   for (int i = 0; i < 200 && st != WIN; i++) tick(2);
   CHECK(st == WIN && moonbits(0) == 3);                                // the two from this visit count
-  nmoons = 0; moonload(); CHECK(nmoons == 1 && moonbits(0) == 3 && !strcmp(moons[0].name, "MOONY"));
+  nprog = 0; progload(); CHECK(nprog == 1 && moonbits(0) == 3 && cleared(0) && !strcmp(prog[0].name, "MOONY"));
   load(); render(); CHECK(!wd.moongot);                                // drawn as outlines now
   for (int i = 0; i < 60 && !wd.moongot; i++) tick(2);
   CHECK(wd.moongot == 1 && score == 2000);                             // and can be picked up again
@@ -262,11 +263,11 @@ int main(void) {
   tick(32); tick(0); CHECK(namepos == 1);
   tick(2); tick(0); tick(4); tick(0); CHECK(namepos == 2 && initials[2] == 'B');
   tick(16); tick(0);
-  CHECK(!naming && menu && scoreview && hinew == 0 && hi[0].score == 99999 && !strcmp(hi[0].ini, "ZAB") && !score);
+  CHECK(!naming && menu && !resumable && scoreview && hinew == 0 && hi[0].score == 99999 && !strcmp(hi[0].ini, "ZAB"));
   render(); tick(16); CHECK(menu && !scoreview);
   nhi = 0; hiload(); CHECK(hi[0].score == 99999);
-  // the high-score card opens the table from the menu
-  menusel = MENUN-1; tick(0); tick(16); CHECK(menu && scoreview); render(); tick(0); tick(32); CHECK(!scoreview);
+  // Hatrick's house on the map opens the table
+  mapat = 0; tick(0); tick(16); CHECK(menu && scoreview); render(); tick(0); tick(32); CHECK(!scoreview);
   unlink(path);
 
   // ---- level file mistakes are reported and the rest still loads
