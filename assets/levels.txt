@@ -3,44 +3,52 @@
 
 
 
+                                                                                        o o o o o
+                                                          o                                     o
+                                                          (                                     B
+                                                                                           ?
+                                       o                 BBB                                                                                              o                BBBBB                                                                                     g
+                           o o                                             o                                      B                                                        B   B                                                                                     g
+                                      BBB                                                  BB                                                            BBB               B ( B                                    o o                                              g
+               B           BBB                      o o o o o             BBB                                               o o o o                                  o o o BBBBB                                      B           o o o o o o                        g
+                                                                                                                                                                                                                                                                     g
+                                SSSS                                                 g                           SSSS                             g       SSSS                            o o                  g                                            SSS      g
+                               SSSSS                                                 g                         SSSSSS                             g     SSSSSS                                                 g        11                        22      SSSSS      g
+   @                 g        SSSSSS              T T T T T T T T T T                g                  g     SSSSSSS     T T T T T     K         g    SSSSSSS    T T T T T T T T T T T               44       g        ||        T T T T T T T   ||     SSSSSS      g          F
+#################################################                      ##################################################            ############################                        ####BB#######||################||#######               ##||##########################################
+#################################################                      ##################################################            ############################                        ####33#######||################||#######               ##||##########################################
+
++ coin heaven bg=sky
 
 
 
+                        o  o
+                     o        o                 o  o                 (
+                  o              o           o        o           o
+                                                                     o
+               o                    o     o              o     o
+                                       o                    o
+            o                                                                 22
+   11             SSS             SSS             SSS             SSS         ||
+   ||   T                                                                   SSSSSS
+   SSSS                                                                     SSSSSS
+
++ secret cave
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
 
-
-
-
-
-
-                                                                                                                                    SSS
-                                                                                                                                    SSS
-                                                                                                                                    SSS
-                                                                                                                                    SSS
-                                                                                                          oooooooo22                SSS
-                                                                                                          SSSSSSSSSS                SSS
-                                                                                                                                    SSS
-                                                                                                                                    SSS                            F
-           o o o                                                                                                                    SSS                   SS
-                                                        o                                                                           SSS                  SSS
-                                                                                                                                    SSS                 SSSS
-                                                                               oo                                                   SSS                SSSSS
-         BBBBBBB        ??                           SS   SS                   SS                                                   SSS               SSSSSS
-                                    n               SSS   SSS                  SS         11                                        SSS              SSSSSSS
-                                    MM             SSSS   SSSS                 SS         ||                                 ####BB#SSS#BB#####     SSSSSSSS
-  @                  g              ||            SSSSS   SSSSS        g    K  SS     g   ||            T                    ####         #####    SSSSSSSSS
-##############################^^^#########    #########   ###################################################  CCCCC  ###########  o o o  #################################
-##########################################    #########   ###################################################         #####################################################
-
-+ coin cave
-SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
-S                              S
-S  o o o o o o o o o o o o o   S
-S                              S
-S              o o o           S
-S 11          SSSSSSS      22  S
-S ||                       ||  S
-SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+               o
+            o \
+              S\ go
+              SS\
+              SSS\   o                     o
+              SSSS\
+              SSSSS\ g                     B     o o o o o
+    33        SSSSSS\     o   o
+    ||        SSSSSSS\                                                        44
+SSSSSSSS      SSSSSSSS      g      g                                          ||
+SSSSSSSS      SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS||SSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
 = 2 brickworks     music=underground card=bricks
 

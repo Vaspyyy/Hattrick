@@ -84,7 +84,7 @@ def flag():
     rows = (levels + labs)[int(lvl)][0]
     while rows and not rows[-1].strip(): rows.pop()
     for i, r in enumerate(rows):
-        if "F" in r: return r.index("F") * 8, (32 - len(rows) + i) * 8, 0
+        if "F" in r: return r.index("F") * 8, (max(32, len(rows)) - len(rows) + i) * 8, 0
 
 wps.append(flag())
 start = [(k, int(n)) for n, k in prefix]

@@ -167,13 +167,14 @@ Levels are ASCII maps. Each one starts with a header line, followed by its rows,
 | Option | Meaning | Default |
 |---|---|---|
 | `music=<folder>` | theme folder in `assets/music/` | `overworld` |
+| `time=<seconds>` | the level timer, 1 to 9999 | `500` |
 | `card=<style>` | the landmark beside its stop on the map: `hills`, `bricks`, `spikes`, `sky`, `castle` or `playground` | `hills` |
 
 **Bonus rooms:** a line starting with `+` begins a bonus room of the level above it, with its own map (same size rules). The rest of the line is a name for your own use, plus an optional `bg=cave` (the default: a dim cave) or `bg=sky`. Rooms are only reachable through tubes. The start and the flag belong in the level's main area. The first time Hatrick enters a bonus room is worth 2000 points.
 
 **Order and the map:** campaign levels are played in file order, and you can have as many as you like: the overworld lays out one stop per level along its path (the map scrolls as far as it needs), each opening once the level before it is cleared. Finishing the last one ends the run. Levels whose name starts with `lab` are not part of the campaign. The last `lab` level is the movement playground (F1, and its stop below Hatrick's house). Without any lab level there is no playground. Progress is kept by level name: renaming a level makes it count as not cleared.
 
-**Size:** an area is at most 32 rows tall and 2560 columns wide (a long level runs for minutes; the 500-second timer is the real limit). Rows sit at the bottom of the 32-row map, so a short level is just floor and sky. Empty lines inside a map count as rows. Every level needs exactly one `@` and one `F`. A level holds at most 3 moon coins, 480 enemies, 128 tube mouths, 240 fire bars, 240 tube dwellers, 960 crumble blocks and 64 checkpoints.
+**Size:** an area (the main area or a bonus room) is up to 320 rows tall and 2560 columns wide. It is as tall as its rows, but at least 32: rows sit at the bottom, so a short level is just floor and sky above it. Falling off the bottom is a death; above the top there's only sky. For long levels, give the level more time with `time=`. Empty lines inside a map count as rows. Every level needs exactly one `@` and one `F`. A level holds at most 3 moon coins, 480 enemies, 128 tube mouths, 240 fire bars, 240 tube dwellers, 960 crumble blocks and 64 checkpoints.
 
 | Char | Tile | Char | Tile |
 |---|---|---|---|
@@ -218,7 +219,7 @@ Hatrick goes in by pressing Down on top of a mouth that opens up, by walking int
 
 **Moon coins (`(`):** each level can hide up to three, in its main area or its bonus rooms. They're the game's secrets, so put them somewhere that takes exploring or skill to reach: behind a tube, above a hidden-block staircase, at the end of a hard detour. Picking one up is worth 2000 points, but it only counts once Hatrick reaches the flag; a death before the next checkpoint loses it again. Coins brought home are saved in `~/.hatrick_progress` by level name ("`<bits> <LEVEL NAME>`" per line, bit 1 for the level's first moon coin in reading order, 2 for the second, 4 for the third; 8 means the level is cleared). They show in the map's banner on the level's stop, and as faint outlines in the level (they can still be picked up for points). Renaming a level forgets its moon coins.
 
-**Timer:** every level has 500 seconds, shown in the HUD; it turns red with a warning sound at 100 and running out is a death. It starts over with the level (and with R); a checkpoint keeps the time that was left, unless it ran out.
+**Timer:** every level has 500 seconds (or its `time=`), shown in the HUD; it turns red with a warning sound at 100 and running out is a death. It starts over with the level (and with R); a checkpoint keeps the time that was left, unless it ran out.
 
 **Points:** coin 100, stomp or cap knockout 200, brick 50, hidden block 1100, tube dweller 500, a bonus room found 2000. At the flag, the height where Hatrick grabs the pole is worth 100 to 5000 (the very top), then every second left on the timer adds 50. A death takes the score back to the level's start, or to the last checkpoint.
 

@@ -56,14 +56,29 @@ int main(void) {
   CHECK(LV[0].card == CARD_CASTLE);
 
   // too tall / too wide / too many enemies
-  static char big[20000] = "= 1 tall\n@ F\n"; for (int i = 0; i < 32; i++) strcat(big, "#\n");
+  static char big[20000] = "= 1 tall\n@ F\n"; for (int i = 0; i < MH; i++) strcat(big, "#\n");
   strcat(big, "= 2 wide\n@ F\n"); for (int i = 0; i < MW+1; i++) strcat(big, "#"); strcat(big, "\n");
   strcat(big, "= 3 crowd\n@ F\n"); for (int i = 0; i < MAXEN+1; i++) strcat(big, "g"); strcat(big, "\n#\n");
   strcat(big, "= 4 fine\n@ F\n###\n");
   CHECK(parse(big) && NLV == 1 && !strcmp(LV[0].name, "FINE"));
   char wide[80], crowd[80];
   snprintf(wide, sizeof wide, "level \"WIDE\" is wider than %d columns", MW); snprintf(crowd, sizeof crowd, "level \"CROWD\" has too many enemies (at most %d)", MAXEN);
-  CHECK(strstr(err, "level \"TALL\" is taller than 32 rows") && strstr(err, wide) && strstr(err, crowd));
+  CHECK(strstr(err, "level \"TALL\" is taller than 320 rows") && strstr(err, wide) && strstr(err, crowd));
+  // a tall level: 200 rows, the start at the bottom, the flag on a ledge at the top
+  static char tall[8000] = "= 1 tower\n\n\n                    F\n                 ######\n";
+  for (int i = 0; i < 194; i++) strcat(tall, "\n");
+  strcat(tall, " @\n########################\n");
+  CHECK(parse(tall) && !*err && LV[0].room[0].h == 200);
+  fresh(); lvl = 0; load(); menu = 0; resumable = 1;
+  CHECK(lh == 200 && gy == 2 && starty == 198 && map[199][0] == 1 && map[3][17] == 1);
+  for (int i = 0; i < 60; i++) tick(0), render();
+  CHECK(st == NORM && gnd && hy >> 8 == 199*8-11 && cyf >> 8 == lh*8 - H);   // standing at the bottom, the camera there too
+  hx = (18*8) << 8; hy = (3*8-11) << 8; hvy = 0;                          // on the ledge beside the flag at the top
+  for (int i = 0; i < 120 && st != WIN; i++) tick(2), render();
+  CHECK(st == WIN);
+  load(); hx = (23*8+4) << 8; hy = (190*8) << 8;                          // off the right end: a long fall to the bottom
+  for (int i = 0; i < 200 && st != DEAD; i++) tick(2);
+  CHECK(st == DEAD && hy >> 8 > 200*8);
   // a long level: 2500 columns, played and drawn at its far end
   static char longl[12000] = "= 1 long\n";
   { char *p = longl + strlen(longl); p[0] = '@'; for (int i = 1; i < 2490; i++) p[i] = ' '; strcpy(p + 2490, "F\n");

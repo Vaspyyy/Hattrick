@@ -33,7 +33,8 @@ typedef unsigned u32;
 #define MAXHOME 240
 #define MAXCR 960
 #define MAXCK 64
-#define MH 32
+#define MH 320          // the tallest an area can be, in tiles; each is as tall as its rows (at least MINH)
+#define MINH 32
 #define SOLID 0x1BF3E    // full tiles 1..5, slopes 8..9, tubes 10..12, crumble 13, found hidden block 15, fire bar pivot 16
 // Tiles: see tiletype().
 // Physics is fixed point, 1/256 px, 60 steps per second.
@@ -115,9 +116,10 @@ enum { T_UP, T_DOWN, T_LEFT, T_RIGHT };   // the way a tube mouth opens
 typedef struct { int room, x, y, dir, id, link; } Tube;   // mouth's top-left cell; link: partner tube or -1
 typedef struct { int room, x, y, len, speed, a0; } Bar;    // fire bar pivot cell; speed in 1/65536 turn per frame (+ clockwise)
 typedef struct { int room, tube, spit; } Home;             // a tube dweller and the mouth it lives in
-typedef struct { int w, cave; u8 grid[MH][MW]; } Room;
+typedef struct { int w, h, cave; u8 *grid; } Room;   // grid: h rows of w map characters (0 = empty)
+#define GRID(R, x, y) ((R)->grid[(y)*(R)->w + (x)])
 typedef struct {
-  char name[40], music[64]; int card, lab, nroom, ntube, nbar, nhome, nmoon;
+  char name[40], music[64]; int card, lab, time, nroom, ntube, nbar, nhome, nmoon;   // time: the level timer, s
   Room room[NROOM]; Tube tube[MAXTUBE]; Bar bar[MAXBAR]; Home home[MAXHOME];
   struct { int room, x, y; } moon[3];   // its secret moon coins, in reading order (main area, then rooms)
 } Level;
@@ -154,50 +156,60 @@ static void parseheader(Level *L, Room *R, char *h, const char *file, int line) 
       if (!strcmp(w, "bg") && (!strcmp(eq, "cave") || !strcmp(eq, "sky"))) R->cave = !strcmp(eq, "cave");
       else levelerr(file, line, "unknown room option \"%s=%s\" (use bg=cave or bg=sky)", w, eq);
     } else if (!strcmp(w, "music")) snprintf(L->music, sizeof L->music, "%s", eq);
-    else if (!strcmp(w, "par")) levelerr(file, line, "par= is no longer used: every level has a 500 s timer");
+    else if (!strcmp(w, "time")) { L->time = atoi(eq); if (L->time < 1 || L->time > 9999) levelerr(file, line, "time needs 1 to 9999 seconds"), L->time = 500; }
+    else if (!strcmp(w, "par")) levelerr(file, line, "par= is no longer used: every level has a timer (time=, 500 s by default)");
     else if (!strcmp(w, "card")) {
       int c = 0; while (c < NCARD && strcmp(eq, CARDNAME[c])) c++;
       if (c < NCARD) L->card = c; else levelerr(file, line, "unknown card \"%s\" (use hills, bricks, spikes, sky, castle or playground)", eq);
-    } else levelerr(file, line, "unknown option \"%s\" (use music= or card=)", w);
+    } else levelerr(file, line, "unknown option \"%s\" (use music=, card= or time=)", w);
   }
   if (R) return;
   L->lab = !strncmp(name, "lab", 3);
   char *p = name; while ((*p >= '0' && *p <= '9') || *p == ' ') p++;   // "1 hills" -> "HILLS"
   for (int i = 0; p[i] && i < (int)sizeof L->name - 1; i++) L->name[i] = p[i] >= 'a' && p[i] <= 'z' ? p[i]-32 : p[i];
 }
-// Fills one area's grid from its rows (sitting at the bottom of the map). Returns 0 if unusable.
+// Fills one area's grid from its rows: as tall as its rows (at least MINH), the rows at the bottom.
+// Returns 0 if unusable.
 static int parserows(Level *L, int r, char **ln, const int *row, int nr, const char *file, int head) {
   Room *R = L->room + r;
   if (nr > MH) { levelerr(file, head, "%s \"%s\" is taller than %d rows, skipped", r ? "bonus room of level" : "level", L->name, MH); return 0; }
   for (int i = 0; i < nr; i++) {
-    const char *l = ln[row[i]]; int y = MH - nr + i, len = strlen(l);
+    int len = strlen(ln[row[i]]);
     if (len > MW) { levelerr(file, row[i]+1, "level \"%s\" is wider than %d columns, skipped", L->name, MW); return 0; }
     if (len > R->w) R->w = len;
+  }
+  if (!R->w) R->w = 1;
+  R->h = nr > MINH ? nr : MINH;
+  R->grid = calloc(R->h * R->w, 1);
+  for (int i = 0; i < nr; i++) {
+    const char *l = ln[row[i]]; int y = R->h - nr + i, len = strlen(l);
     for (int x = 0; x < len; x++) {
       char c = l[x];
       if (c != ' ' && !strchr(KNOWN, c)) { levelerr(file, row[i]+1, "unknown tile '%c' in column %d, left empty", c, x+1); c = ' '; }
       if (r && (c == '@' || c == 'F')) { levelerr(file, row[i]+1, "'%c' belongs in the level's main area, not a bonus room; left empty", c); c = ' '; }
-      R->grid[y][x] = c == ' ' ? 0 : c;
+      GRID(R, x, y) = c == ' ' ? 0 : c;
     }
   }
-  if (!R->w) R->w = 1;
   return 1;
 }
+static void freelevel(Level *L) { for (int r = 0; r < NROOM; r++) free(L->room[r].grid), L->room[r].grid = 0; }
 // Tubes, fire bars and tube dwellers of one area; mistakes are reported and the object dropped.
 static int isarm(int c) { return c == '~' || c == ':' || c == '!'; }
 static void parseobjects(Level *L, int r, const char *file, const int *line) {
-  u8 (*g)[MW] = L->room[r].grid, seen[MH][MW] = { { 0 } };
-  #define AT(x, y) ((unsigned)(x) < MW && (unsigned)(y) < MH ? g[y][x] : 0)
-  for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++) {
-    int c = g[y][x];
-    if (!c || seen[y][x]) continue;
+  Room *R = L->room + r;
+  u8 *seen = calloc(R->w * R->h, 1);
+  #define AT(x, y) ((unsigned)(x) < (unsigned)R->w && (unsigned)(y) < (unsigned)R->h ? GRID(R, x, y) : 0)
+  #define SEEN(x, y) seen[(y)*R->w + (x)]
+  for (int y = 0; y < R->h; y++) for (int x = 0; x < R->w; x++) {
+    int c = GRID(R, x, y);
+    if (!c || SEEN(x, y)) continue;
     if (c == 'M' || (c >= '0' && c <= '9')) {
       Tube t = { r, x, y, T_UP, c == 'M' ? -1 : c-'0', -1 };
-      if (AT(x+1, y) == c && !seen[y][x+1]) {
-        seen[y][x+1] = 1;
+      if (AT(x+1, y) == c && !SEEN(x+1, y)) {
+        SEEN(x+1, y) = 1;
         t.dir = AT(x, y-1) == '|' && AT(x, y+1) != '|' ? T_DOWN : T_UP;
       } else if (AT(x, y+1) == c) {
-        seen[y+1][x] = 1;
+        SEEN(x, y+1) = 1;
         t.dir = AT(x-1, y) == '-' && AT(x+1, y) != '-' ? T_RIGHT : T_LEFT;
       } else { levelerr(file, line[y], "tube mouth '%c' in column %d needs a second cell: side by side for a tube opening up or down, stacked for one opening sideways", c, x+1); continue; }
       if (L->ntube < MAXTUBE) L->tube[L->ntube++] = t; else levelerr(file, line[y], "too many tube mouths (at most %d)", MAXTUBE);
@@ -214,8 +226,8 @@ static void parseobjects(Level *L, int r, const char *file, const int *line) {
       if (L->nbar < MAXBAR) L->bar[L->nbar++] = b; else levelerr(file, line[y], "too many fire bars (at most %d)", MAXBAR);
     }
   }
-  for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++) {
-    int c = g[y][x], home = -1;
+  for (int y = 0; y < R->h; y++) for (int x = 0; x < R->w; x++) {
+    int c = GRID(R, x, y), home = -1;
     if (c != 'n' && c != 'm') continue;
     for (int i = 0; i < L->ntube; i++) {
       Tube *t = L->tube + i;
@@ -226,6 +238,8 @@ static void parseobjects(Level *L, int r, const char *file, const int *line) {
     else levelerr(file, line[y], "too many tube dwellers (at most %d)", MAXHOME);
   }
   #undef AT
+  #undef SEEN
+  free(seen);
 }
 // Parses a whole levels.txt. Broken levels are reported (file name and line) and skipped;
 // returns 0 if no campaign level is usable, leaving the current levels in place.
@@ -244,7 +258,7 @@ static int parselevels(const char *text, const char *file) {
     if (ln[h][0] != '=') continue;
     out = realloc(out, (n+1) * sizeof *out);
     Level *L = out + n;
-    memset(L, 0, sizeof *L); strcpy(L->music, "overworld");
+    memset(L, 0, sizeof *L); strcpy(L->music, "overworld"); L->time = 500;
     parseheader(L, 0, ln[h]+1, file, h+1);
     int end = h+1; while (end < nl && ln[end][0] != '=') end++;
     int ok = 1, lines[NROOM][MH];
@@ -258,13 +272,13 @@ static int parselevels(const char *text, const char *file) {
       for (int i = s+1; i < next; i++) if (ln[i][0] != ';' && ln[i][0]) last = i;
       for (int i = s+1; i <= last; i++) if (ln[i][0] != ';') { if (nr <= MH) row[nr] = i; nr++; }
       ok = parserows(L, r, ln, row, nr, file, s+1);
-      for (int y = 0; y < MH; y++) { int i = y - (MH - nr); lines[r][y] = ok && i >= 0 ? row[i]+1 : s+1; }
+      for (int y = 0; y < MH; y++) { int i = y - (L->room[r].h - nr); lines[r][y] = ok && i >= 0 && i < nr ? row[i]+1 : s+1; }
       L->nroom++;
       s = next;
     }
     int sx = -1, fx = -1, nen = 0;
-    for (int r = 0; r < L->nroom && ok; r++) for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++) {
-      int c = L->room[r].grid[y][x];
+    for (int r = 0; r < L->nroom && ok; r++) for (int y = 0; y < L->room[r].h; y++) for (int x = 0; x < L->room[r].w; x++) {
+      int c = GRID(L->room + r, x, y);
       if (c == '@') sx = x; else if (c == 'F') fx = x; else if (c && strchr("gbh", c)) nen++;
     }
     if (ok && sx < 0) levelerr(file, h+1, "level \"%s\" has no start (@), skipped", L->name), ok = 0;
@@ -279,26 +293,27 @@ static int parselevels(const char *text, const char *file) {
         else if (a >= 0) levelerr(file, h+1, "level \"%s\": tube %d has no partner (give a second tube mouth the same digit); it can't be entered", L->name, id);
         if (more) levelerr(file, h+1, "level \"%s\": more than two tube mouths are numbered %d; only the first two are linked", L->name, id);
       }
-      for (int r = 0; r < L->nroom; r++) for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++)
-        if (L->room[r].grid[y][x] == '(') {
+      for (int r = 0; r < L->nroom; r++) for (int y = 0; y < L->room[r].h; y++) for (int x = 0; x < L->room[r].w; x++)
+        if (GRID(L->room + r, x, y) == '(') {
           if (L->nmoon < 3) L->moon[L->nmoon].room = r, L->moon[L->nmoon].x = x, L->moon[L->nmoon++].y = y;
-          else levelerr(file, h+1, "level \"%s\" has more than 3 moon coins; the rest are ignored", L->name), L->room[r].grid[y][x] = 0;
+          else levelerr(file, h+1, "level \"%s\" has more than 3 moon coins; the rest are ignored", L->name), GRID(L->room + r, x, y) = 0;
         }
       int nck = 0, ncr = 0;
-      for (int r = 0; r < L->nroom; r++) for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++)
-        nck += L->room[r].grid[y][x] == 'K', ncr += L->room[r].grid[y][x] == 'C';
+      for (int r = 0; r < L->nroom; r++) for (int y = 0; y < L->room[r].h; y++) for (int x = 0; x < L->room[r].w; x++)
+        nck += GRID(L->room + r, x, y) == 'K', ncr += GRID(L->room + r, x, y) == 'C';
       if (nck > MAXCK) levelerr(file, h+1, "level \"%s\" has more than %d checkpoints; the rest are ignored", L->name, MAXCK);
       if (ncr > MAXCR) levelerr(file, h+1, "level \"%s\" has more than %d crumble blocks; the rest stay solid", L->name, MAXCR);
     }
+    if (!ok) freelevel(L);
     n += ok;
     h = end - 1;
   }
   free(ln); free(copy);
   int camp = 0; for (int i = 0; i < n; i++) camp += !out[i].lab;
-  if (!camp) { fprintf(stderr, "hatrick: %s: no playable level\n", file); free(out); return 0; }
+  if (!camp) { fprintf(stderr, "hatrick: %s: no playable level\n", file); for (int i = 0; i < n; i++) freelevel(out + i); free(out); return 0; }
   Level *sorted = malloc(n * sizeof *sorted); int k = 0;   // campaign first, then labs, in file order
   for (int pass = 0; pass < 2; pass++) for (int i = 0; i < n; i++) if (out[i].lab == pass) sorted[k++] = out[i];
-  free(out); free(LV);
+  free(out); for (int i = 0; i < NLEVEL && LV; i++) freelevel(LV + i); free(LV);
   LV = sorted; NLV = camp; NLEVEL = n; PLAY = n > camp ? n-1 : -1; levelgen++;
   return 1;
 }
@@ -332,9 +347,9 @@ static struct World {
 #define map (wd.rm[room])
 #define en (wd.en)
 #define ne (wd.ne)
-static int room, startx, starty, haveck, ckroom, ckx, cky;
+static int room, lh = MINH, startx, starty, haveck, ckroom, ckx, cky;   // lh: the current area's height, tiles
 static int score, lscore, savedcoins, savedscore, lstart, split;   // split: frames the finished level took
-#define LIMIT (500*60)    // every level's timer: 500 s; out of time is a death
+#define LIMIT (LV[lvl].time*60)   // the level's timer (time=, 500 s by default); out of time is a death
 static int left, timeout;  // frames left on it; the last death was the timer running out
 static int tubefrom, tubeto, tubelock, ride, wphase, wt, tally, flagy, skipclear, donet;
 // Presentation of scoring and finds (never read by the game logic).
@@ -353,7 +368,7 @@ static void modlevels(void) {
   readlevels(path);
 }
 
-static int tile(int x, int y) { return x < 0 ? 4 : x >= lw || y < 0 || y >= MH ? 0 : map[y][x]; }
+static int tile(int x, int y) { return x < 0 ? 4 : x >= lw || y < 0 || y >= lh ? 0 : map[y][x]; }
 // First tile of a type in mask m under the pixel rect; its position goes to htx/hty.
 static int scan(int x, int y, int w, int h, int m) {
   for (int ty = y >> 3; ty <= (y+h-1) >> 3; ty++)
@@ -447,8 +462,8 @@ static Crumble *crumbleat(int r, int x, int y) {
 static void build(void) {
   const Level *L = LV + lvl;
   memset(&wd, 0, sizeof wd);
-  for (int r = 0; r < L->nroom; r++) for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++) {
-    int c = L->room[r].grid[y][x];
+  for (int r = 0; r < L->nroom; r++) for (int y = 0; y < L->room[r].h; y++) for (int x = 0; x < L->room[r].w; x++) {
+    int c = GRID(L->room + r, x, y);
     wd.rm[r][y][x] = tiletype(c);
     if (r == 0 && c == '@') startx = x, starty = y;
     if (r == 0 && c == 'F') gx = x, gy = y;
@@ -457,12 +472,12 @@ static void build(void) {
     if (c == 'K' && wd.nck < 16) wd.ck[wd.nck++] = (Check){ r, x, y };
   }
   for (int i = 0; i < L->nhome; i++) wd.dw[i] = (Dweller){ 0, 40 + i*53 % 100, 0, 1 };   // staggered
-  room = 0; lw = L->room[0].w;
-  for (gb = gy*8; gb < MH*8 && !scan(gx*8+3, gb, 1, 1, SOLID); gb++);
+  room = 0; lw = L->room[0].w; lh = L->room[0].h;
+  for (gb = gy*8; gb < lh*8 && !scan(gx*8+3, gb, 1, 1, SOLID); gb++);
 }
 // Puts Hatrick in area r at (x, y) (1/256 px) with a fresh state: level start, checkpoint or tube.
 static void spawn(int r, int x, int y) {
-  room = r; lw = LV[lvl].room[r].w;
+  room = r; lw = LV[lvl].room[r].w; lh = LV[lvl].room[r].h;
   hx = x; hy = y;
   hvx = hvy = st = stt = jn = cst = lock = spin = skid = fr = gnd = jbuf = coy = wall = cut = capok = diveok = stall = cready = throwt = 0;
   duck = catcht = catchok = twirl = gpspin = rollbuf = cvy = ckind = 0;
@@ -512,7 +527,7 @@ static void tubemove(void) {
     tubeexit(b, &x, &y, &vx, &vy);
     if (stt == 20) {   // inside the far mouth, out of sight
       if (b->room != room) {
-        room = b->room; lw = L->room[room].w;
+        room = b->room; lw = L->room[room].w; lh = L->room[room].h;
         if (room && !(wd.found >> room & 1)) wd.found |= 1 << room, addscore(2000, x+3, y-4), sfx(S_REVEAL);   // a bonus room found
       }
       hx = (x << 8) - vx*20; hy = (y << 8) - vy*20; sfx(S_TUBE);
@@ -885,7 +900,7 @@ static void hero(int k, int pr) {
     }
   }
   while (scan(X, Y+duck, 6, 11-duck, 64)) { map[hty][htx] = 0; coins++; sfx(S_COIN); addscore(100, htx*8+4, hty*8); }
-  if (scan(X-1, Y+duck+2, 8, 8-duck, 8) || scan(X+1, Y+duck-1, 4, 13-duck, 8) || Y > MH*8+8) die();
+  if (scan(X-1, Y+duck+2, 8, 8-duck, 8) || scan(X+1, Y+duck-1, 4, 13-duck, 8) || Y > lh*8+8) die();
   if (room == 0 && X+6 > gx*8+2 && X < gx*8+6 && Y < gb && st < TUBE) touchflag(Y);
   else if (st < TUBE && !lock) tubecheck(k, dir, X, Y, vy0);
 }
@@ -945,7 +960,7 @@ static void enemies(int k) {
       e->x += e->vx; ex = e->x >> 8;
       if (scan(ex, ey, 8, 8, SOLID) || (!e->vy && !scan(e->vx > 0 ? ex+8 : ex-1, ey+8, 1, 1, SOLID)))
         e->x -= e->vx, e->vx = -e->vx;
-      if (ey > MH*8) e->a = 0;
+      if (ey > lh*8) e->a = 0;
     } else {           // flyers: 2 bob vertically, 3 sweep horizontally
       int ph = (fr + (e->h >> 9)) & 127, o = (ph < 64 ? ph : 128-ph) - 32;
       if (e->t == 2) e->y = e->h + o*192; else e->x += (ph < 64 ? 1 : -1)*96;
@@ -971,7 +986,7 @@ static void objects(void) {
     } else if (c->state == 1) {
       c->vy = c->vy + 20 > 640 ? 640 : c->vy + 20; c->fy += c->vy;
       if (ride == c - wd.cr + 1 && room == c->room) hy += c->vy;
-      if (c->fy >> 8 > MH*8+16) c->state = 2, c->t = 150;
+      if (c->fy >> 8 > LV[lvl].room[c->room].h*8+16) c->state = 2, c->t = 150;
     } else if (--c->t <= 0) {
       if (c->room == room && ov(hx >> 8, hy >> 8, 6, 11, c->x*8, c->y*8, 8, 8)) c->t = 10;   // not into Hatrick
       else { c->state = c->t = 0; wd.rm[c->room][c->y][c->x] = 13; if (c->room == room) burst(c->x*8+4, c->y*8+4, 0xf0d098, 4); }
@@ -1044,7 +1059,7 @@ static void hazards(void) {
     if (!p->a) continue;
     p->vy += 14; p->x += p->vx; p->y += p->vy;
     int sx = p->x >> 8, sy = p->y >> 8;
-    if (p->room != room || sy > MH*8+16 || (SOLID >> tile(sx >> 3, sy >> 3) & 1)) { p->a = 0; continue; }
+    if (p->room != room || sy > lh*8+16 || (SOLID >> tile(sx >> 3, sy >> 3) & 1)) { p->a = 0; continue; }
     if (alive && ov(X, Y, 6, hh, sx-2, sy-2, 4, 4)) die();
     if (capon && ov(cxp >> 8, cyp >> 8, 8, 5, sx-2, sy-2, 4, 4)) p->a = 0, burst(sx, sy, 0x9a6a3a, 4), addscore(50, sx, sy);
   }
@@ -1772,7 +1787,7 @@ static void camera(void) {
   }
   if (cxf > (lw*8-W) << 8) cxf = (lw*8-W) << 8;
   if (cxf < 0) cxf = 0;
-  if (cyf > (MH*8-H) << 8) cyf = (MH*8-H) << 8;
+  if (cyf > (lh*8-H) << 8) cyf = (lh*8-H) << 8;
   if (cyf < 0) cyf = 0;
 }
 
@@ -1876,7 +1891,7 @@ static void render(void) {
   camera();
   ox = cxf * SC >> 8;
   oy = (cyf * SC >> 8) + (shake ? (shake & 2 ? 2*SC : -2*SC) : 0);
-  int lo = (((MH*8-H) << 8) - cyf) * SC >> 8;     // camera height above the bottom, screen px
+  int lo = (((lh*8-H) << 8) - cyf) * SC >> 8;     // camera height above the bottom, screen px
   drawbg(L->room[room].cave, lo);
   // behind the tiles: tube dwellers and Hatrick inside a tube, so the brass hides them
   for (int i = 0; i < L->nhome; i++) {
@@ -2285,7 +2300,7 @@ static int exportgfx(const char *dir) {
   putimg(dir, "tiles", 64, 32, tiles); putimg(dir, "hatrick", 80, 24, hero); putimg(dir, "walker", 16, 8, walker);
   putimg(dir, "buzzer", 16, 8, buzz); putimg(dir, "dweller", 32, 16, dw); putimg(dir, "cap", 8, 4, cap); putimg(dir, "moon", 13, 13, moon);
   for (int cave = 0; cave < 2; cave++) {   // one screen of each background, from the bottom of a level
-    ox = oy = 0; cyf = (MH*8-H) << 8;
+    ox = oy = 0; lh = MINH; cyf = (lh*8-H) << 8;
     drawbg(cave, 0);
     for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) sky[y*W + x] = big[y*SC][x*SC];
     putimg(dir, cave ? "cave" : "sky", W, H, sky);

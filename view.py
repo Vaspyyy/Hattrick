@@ -16,7 +16,8 @@ for line in open("assets/levels.txt").read().split("\n"):
 levels += labs
 rows = levels[lvl][area]
 while rows and not rows[-1].strip(): rows.pop()
-rows = [""] * (32 - len(rows)) + rows
+AH = max(32, len(rows))   # the area is as tall as its rows, at least 32
+rows = [""] * (AH - len(rows)) + rows
 w = max(len(r) for r in rows)
 x0, x1 = (int(args[0]), int(args[1])) if len(args) > 1 else (0, w)
 S = 2
@@ -27,13 +28,13 @@ COL = {"#": (168, 100, 44), "B": (208, 96, 42), "^": (224, 230, 238), "S": (144,
        "~": (255, 160, 40), ":": (255, 160, 40), "!": (255, 160, 40), "K": (47, 208, 180), "n": (47, 143, 154),
        "m": (224, 88, 106), "(": (200, 216, 255)}
 for c in "0123456789": COL[c] = (240, 200, 96)
-im = Image.new("RGB", ((x1 - x0) * 8 * S, 256 * S), (74, 160, 255))
+im = Image.new("RGB", ((x1 - x0) * 8 * S, AH * 8 * S), (74, 160, 255))
 d = ImageDraw.Draw(im)
 for i in range(x0, x1):
-    if i % 8 == 0: d.line([((i - x0) * 8 * S, 0), ((i - x0) * 8 * S, 256 * S)], (90, 175, 255))
+    if i % 8 == 0: d.line([((i - x0) * 8 * S, 0), ((i - x0) * 8 * S, AH * 8 * S)], (90, 175, 255))
     if i % 8 == 0: d.text(((i - x0) * 8 * S + 2, 2), str(i), (255, 255, 255))
-for y in range(0, 32, 4): d.text((2, y * 8 * S + 2), str(y), (255, 255, 255))
-for y in range(32):
+for y in range(0, AH, 4): d.text((2, y * 8 * S + 2), str(y), (255, 255, 255))
+for y in range(AH):
     for x in range(x0, min(x1, w)):
         c = rows[y][x] if x < len(rows[y]) else " "
         if c in COL:

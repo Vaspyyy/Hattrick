@@ -203,6 +203,9 @@ int main(void) {
   left = 1; tick(0); CHECK(st == DEAD && timeout);
   run(0, 62); CHECK(st == NORM && X() == 5*8+1 && left >= LIMIT - 2);  // ...unless it ran out
   CHECK(parse("= 1 old par=90\n@ F\n###\n") && strstr(err, "par= is no longer used"));
+  use("= 1 quick time=120\n@     F\n#######\n");   // a level's own timer
+  CHECK(LV[0].time == 120 && left == 120*60); run(0, 1); CHECK(left == 120*60 - 1);
+  CHECK(parse("= 1 silly time=0\n@ F\n###\n") && strstr(err, "time needs 1 to 9999 seconds") && LV[0].time == 500);
 
   // ---- moon coins: three secret ones per level, kept once they reach the flag, saved by level name
   char mpath[] = "/tmp/hatrick-progress-XXXXXX"; close(mkstemp(mpath)); setenv("HATRICK_PROGRESS", mpath, 1);
