@@ -146,17 +146,61 @@ def pause():
     return fadeout(mix(*[(i * 0.03, sample("marimba", p, 0.8, 0.3), 0.7) for i, p in enumerate((72, 76, 79))],
                        (0.09, sample("glock", 91, 0.5, 0.5), 0.4)))
 
+def checkpoint():   # a rising four-note chime with a shimmer: "saved"
+    notes = [(i * 0.06, sample("glock", p, 0.75, 0.6), 0.75 - i * 0.05) for i, p in enumerate((84, 88, 91, 96))]
+    return fadeout(mix(*notes, (0, sample("marimba", 60, 0.8, 0.4), 0.6), (0.18, sample("belltree", 0, 0.5), 0.35)), 0.15)
+
+def tube():   # a hollow brass "whoomp" falling into the tube, with a wobbly resonance
+    t = t_axis(0.42)
+    f = 260 * np.exp(-t / 0.18) + 95
+    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * (1 + 0.25 * np.sin(2 * np.pi * 11 * t))
+    air = band(noise(0.42, 59), 1600, 400, 500)
+    return fadeout(mix((0, stereo((body * env(0.42, 0.01, 0.14)).astype(np.float32)), 0.8),
+                       (0, stereo(air * env(0.42, 0.02, 0.1)), 0.35), (0, sample("loglo", 50, 0.7, 0.3), 0.5)))
+
+def crumble():   # a dry rattle of little knocks and grit
+    r = np.random.default_rng(61)
+    parts = [(0, stereo(band(noise(0.4, 67), 2200, 900, 900) * env(0.4, 0.01, 0.12) * (0.6 + 0.4 * np.sign(np.sin(2 * np.pi * 30 * t_axis(0.4))))), 0.5)]
+    for i in range(7):
+        parts.append((i * 0.045 + r.uniform(0, 0.015), sample("claves" if i % 2 else "loghi", 66 + r.integers(-4, 5), 0.35), 0.35 - i * 0.03))
+    return fadeout(mix(*parts))
+
+def reveal():   # a hidden block found: a bright marimba-and-bell sparkle upward
+    notes = [(i * 0.05, sample("marimba", p, 0.85, 0.25), 0.8) for i, p in enumerate((72, 79, 84, 91))]
+    return fadeout(mix(*notes, (0.15, sample("glock", 96, 0.7, 0.6), 0.6), (0.17, sample("glock", 103, 0.6, 0.5), 0.45),
+                       (0.1, sample("belltree", 0, 0.6), 0.4)), 0.2)
+
+def spit():   # "ptoo": a lip pop and a short airy puff
+    pop = stereo(sweep(700, 220, 0.07, 0.5) * env(0.07, 0.001, 0.02))
+    puff = stereo(band(noise(0.16, 71), 2400, 1200, 900) * env(0.16, 0.005, 0.05))
+    return fadeout(mix((0, pop, 0.7), (0.01, puff, 0.5), (0, sample("slap", 70, 0.6), 0.5)))
+
+def emerge():   # a soft wet "shlup" of something sliding out of a tube
+    t = t_axis(0.2)
+    w = band(noise(0.2, 73), 300, 1200, 300) * (0.6 + 0.4 * np.sin(2 * np.pi * 22 * t)) * env(0.2, 0.03, 0.07)
+    return fadeout(mix((0, stereo(w), 1.0), (0.02, bend(sample("loglo", 64, 0.5, 0.15), 0.8, 1.3, 0.1), 0.35)))
+
+def tick():   # one tick of the score tally: tiny and bright
+    return fadeout(mix((0, sample("glock", 100, 0.5, 0.08), 0.6), (0, sample("claves", 76, 0.4), 0.3))[:int(0.09 * SR)], 0.04)
+
+def bonus():   # the tally is done: two bell notes and a sparkle
+    return fadeout(mix((0, sample("glock", 91, 0.8, 0.5), 0.7), (0.09, sample("glock", 96, 0.8, 0.6), 0.75),
+                       (0.09, sample("marimba", 72, 0.8, 0.3), 0.5), (0.12, sample("triangle", 0, 0.5), 0.3)), 0.2)
+
 # name -> (function, loudness relative to the others)
 SFX = {"coin": (coin, 0.55), "jump": (jump, 0.6), "jump2": (lambda: jump(1), 0.62), "jump3": (lambda: jump(2), 0.65),
        "stomp": (stomp, 0.8), "cap_throw": (cap_throw, 0.5), "cap_catch": (cap_catch, 0.5), "cap_bounce": (cap_bounce, 0.6),
        "dive": (dive, 0.55), "gp_spin": (gp_spin, 0.45), "gp_land": (gp_land, 0.85), "brick": (brick, 0.7),
        "spring": (spring, 0.6), "wall_jump": (wall_jump, 0.6), "land": (land, 0.35), "skid": (skid, 0.4),
        "roll": (roll, 0.5), "spin": (spin, 0.45), "longjump": (longjump, 0.6), "flip": (flip, 0.62), "ledge": (ledge, 0.4),
-       "menu_move": (menu_move, 0.4), "menu_ok": (menu_ok, 0.5), "menu_back": (menu_back, 0.45), "pause": (pause, 0.45)}
+       "menu_move": (menu_move, 0.4), "menu_ok": (menu_ok, 0.5), "menu_back": (menu_back, 0.45), "pause": (pause, 0.45),
+       "checkpoint": (checkpoint, 0.55), "tube": (tube, 0.55), "crumble": (crumble, 0.4), "reveal": (reveal, 0.6),
+       "spit": (spit, 0.45), "emerge": (emerge, 0.3), "tick": (tick, 0.3), "bonus": (bonus, 0.5)}
 
-def build_all(outdir):
+def build_all(outdir, only=None):
     out = {}
     for name, (fn, peak) in SFX.items():
+        if only and name not in only: continue
         x = norm(fn(), peak); out[name] = x
         save_ogg(f"{outdir}/{name}.ogg", x)
     return out

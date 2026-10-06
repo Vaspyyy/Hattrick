@@ -23,7 +23,7 @@ int main(void) {
   tick(ANALOG|((256+200)<<10));CHECK(menusel==1); // stick noise doesn't create new key presses
   tick(ANALOG|((256+64)<<10));CHECK(menusel==1);
   tick(ANALOG|((256-200)<<10));CHECK(menusel==0);
-  for(int i=0;i<MENUN;i++) {
+  for(int i=0;i<MENUN-1;i++) {   // the last card is the high-score table
     fresh();menusel=i;tick(16);
     CHECK(!menu && resumable && lvl==(i==NLV?NLV+1:i) && !tim && !jbuf);
     tick(16);CHECK(!jbuf && hvy>=0); // holding confirm cannot jump on entry
@@ -53,7 +53,7 @@ int main(void) {
   fresh();tick(MENUBACK);CHECK(menu && !quitting);tick(0);tick(BACK);CHECK(quitting);
   fresh();tick(QUIT);CHECK(quitting);
   // Mouse hit regions match the renderer, including card edges and gaps.
-  for(int i=0;i<MENUN;i++) {
+  for(int i=0;i<6;i++) {   // the first page of cards
     fresh();int cx=22+i%3*73,cy=62+i/3*32;
     CHECK(menuhit(cx,cy)==i && menuhit(cx+65,cy+26)==i);
     CHECK(menuhit(cx+66,cy+10)==-1 && menuhit(cx+10,cy+27)==-1);

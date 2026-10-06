@@ -265,17 +265,17 @@ def build(t, outdir):
 
 # ---------- jingles (play once) ----------
 def jingle(kind):
-    if kind == "clear":   # course clear: a bright 3-bar fanfare ending on a sung "bah!"
-        bpm, chords = 132, ["C", "F G", "C"]
-        mel = line("G4:2 C5:2 E5:2 G5:2 C6:4 r:2 G5:2 | A5:2 F5:2 A5:2 C6:2 B5:2 G5:2 D6:4 | C6:8 r:8")
+    if kind == "clear":   # course clear: a short two-bar fanfare, a pickup run into a held high C and a sung "bah!"
+        bpm, chords = 150, ["C G", "F C"]
+        mel = line("C5:2 E5:2 G5:2 C6:2 r:1 G5:1 C6:2 E6:4 | D6:2 C6:2 A5:2 B5:2 C6:8")
         sampled = [(b, d, p, 0.9, "marimba") for b, d, p in mel] + \
-                  [(8 + i * 0.125, 0.5, p, 0.6, "glock") for i, p in enumerate((84, 88, 91, 96, 100))] + \
-                  [(8, 1, 0, 0.6, "belltree")]
+                  [(4 + i * 0.125, 0.5, p, 0.6, "glock") for i, p in enumerate((84, 88, 91, 96, 100, 103))] + \
+                  [(6, 1, 0, 0.6, "belltree")]
         parts = [(0, 17, stacc(with_vel(mel, 0.85), 0.6)),
-                 (1, 32, [(0, 0.5, 36, 0.9), (1.5, 0.5, 36, 0.7), (2, 0.5, 43, 0.8), (4, 0.5, 41, 0.9), (6, 0.5, 43, 0.9), (8, 1.5, 36, 1.0)]),
-                 (9, 0, [(b, 0.25, 39, 0.8) for b in (1, 3, 5, 7)] + [(8, 0.5, 49, 0.8), (8, 0.25, 36, 0.9)])]
-        bahs = [(8.0, [60, 64, 67])]
-        length = 7.0
+                 (1, 32, [(0, 0.5, 36, 0.9), (1, 0.5, 43, 0.8), (2, 0.5, 36, 0.8), (3, 0.5, 43, 0.8), (4, 0.5, 41, 0.9), (5, 0.5, 43, 0.9), (6, 1.5, 36, 1.0)]),
+                 (9, 0, [(b, 0.25, 39, 0.8) for b in (1, 3, 5)] + [(6, 0.5, 49, 0.8), (6, 0.25, 36, 0.9)])]
+        bahs = [(6.0, [60, 64, 67])]
+        length = 3.8
     else:                 # death: a short deflating descent
         bpm, chords = 100, ["C", "C"]
         mel = line("E5:2 r:1 E5:1 D#5:2 r:2 D5:2 r:2 C#5:4 | C5:2 G4:2 C4:4 r:8")

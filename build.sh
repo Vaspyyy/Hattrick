@@ -11,4 +11,5 @@ fi
 gcc -O2 -Wall -Wno-unused-function -Wno-parentheses -Wno-sign-compare -Wno-char-subscripts -c audio.c -o audio.o
 gcc -O2 -w hatrick.c audio.o vendor/miniaudio.o -o hatrick -lX11 -lm -lpthread -ldl
 gcc -O1 -DSIM -DSC=1 -w hatrick.c -o sim
+./sim --check || true   # level file problems, if any
 ls -l hatrick

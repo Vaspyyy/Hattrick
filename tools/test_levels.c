@@ -19,7 +19,7 @@ static void fresh(void) { menu = 1; menusel = menufr = menunav = menurepeat = pr
 
 int main(void) {
   // the built-in copy matches the stock campaign
-  CHECK(NLV == 5 && NLEVEL == 7 && PLAY == 6 && MENUN == 6);
+  CHECK(NLV == 5 && NLEVEL == 7 && PLAY == 6 && MENUN == 7);   // + the high-score card
   CHECK(!strcmp(LV[0].name, "HILLS") && !strcmp(LV[4].name, "HATRICK") && !strcmp(LV[6].name, "LAB MOVEMENT PLAYGROUND"));
   CHECK(!strcmp(LV[0].music, "overworld") && !strcmp(LV[1].music, "underground") && !strcmp(LV[4].music, "finale") && !strcmp(LV[6].music, "athletic"));
   CHECK(LV[0].card == CARD_HILLS && LV[1].card == CARD_BRICKS && LV[3].card == CARD_SKY && LV[6].card == CARD_PLAYGROUND);
@@ -32,7 +32,7 @@ int main(void) {
               "\n"
               "##  g   ###\n"
               "= 2 Second Try\n; a comment row is not a map row\n@ o F\n#####\n"));
-  CHECK(!*err && NLV == 2 && NLEVEL == 3 && PLAY == 2 && MENUN == 3);
+  CHECK(!*err && NLV == 2 && NLEVEL == 3 && PLAY == 2 && MENUN == 4);
   CHECK(!strcmp(LV[0].name, "FIRST") && !strcmp(LV[0].music, "my_song") && LV[0].card == CARD_SKY);
   CHECK(!strcmp(LV[1].name, "SECOND TRY") && !strcmp(LV[1].music, "overworld") && LV[1].card == CARD_HILLS);
   CHECK(!strcmp(LV[2].name, "LAB TEST ROOM") && LV[2].lab);
@@ -51,7 +51,7 @@ int main(void) {
   CHECK(strstr(err, "mod.txt:10: unknown option \"colour\""));
   CHECK(strstr(err, "mod.txt:10: unknown card \"lava\""));
   CHECK(strstr(err, "mod.txt:11: unknown tile 'Z' in column 6, left empty"));
-  CHECK(NLV == 2 && PLAY == -1 && MENUN == 2 && !strcmp(LV[1].name, "ODD") && LV[1].card == CARD_HILLS);
+  CHECK(NLV == 2 && PLAY == -1 && MENUN == 3 && !strcmp(LV[1].name, "ODD") && LV[1].card == CARD_HILLS);
   CHECK(LV[0].card == CARD_CASTLE);
 
   // too tall / too wide / too many enemies
@@ -75,12 +75,13 @@ int main(void) {
   char many[20000] = "";
   for (int i = 0; i < 13; i++) sprintf(many + strlen(many), "= %d level %d\n@ F\n###\n", i+1, i+1);
   strcat(many, "= lab play card=playground\n@  F\n####\n");
-  CHECK(parse(many) && NLV == 13 && PLAY == 13 && MENUN == 14);
-  for (int i = 0; i < MENUN; i++) {
+  CHECK(parse(many) && NLV == 13 && PLAY == 13 && MENUN == 15);
+  for (int i = 0; i < MENUN-1; i++) {
     fresh(); menusel = i; render(); tick(16);
     CHECK(!menu && lvl == (i == NLV ? PLAY : i));
   }
-  fresh(); tick(1); CHECK(menusel == 13); render();
+  fresh(); tick(1); CHECK(menusel == 14); render();
+  fresh(); menusel = 14; tick(16); CHECK(menu && scoreview); render(); tick(0); tick(16); CHECK(menu && !scoreview);
   lvl = 12; load(); menu = 0;
   for (int i = 0; i < 1500 && !done; i++) tick(i % 2 ? 2 : 0);
   CHECK(done && lvl == 12);

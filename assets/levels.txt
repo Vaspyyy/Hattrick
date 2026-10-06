@@ -1,4 +1,4 @@
-= 1 hills          music=overworld   card=hills
+= 1 hills          music=overworld   card=hills   par=40
 
 
 
@@ -17,7 +17,7 @@
                                                                                                                                     SSS
                                                                                                                                     SSS
                                                                                                                                     SSS
-                                                                                                          oooooooo                  SSS
+                                                                                                          oooooooo22                SSS
                                                                                                           SSSSSSSSSS                SSS
                                                                                                                                     SSS
                                                                                                                                     SSS                            F
@@ -25,13 +25,24 @@
                                                         o                                                                           SSS                  SSS
                                                                                                                                     SSS                 SSSS
                                                                                oo                                                   SSS                SSSSS
-         BBBBBBB                                     SS   SS                   SS                                                   SSS               SSSSSS
-                                                    SSS   SSS                  SS                                                   SSS              SSSSSSS
-                                                   SSSS   SSSS                 SS                                            ####BB#SSS#BB#####     SSSSSSSS
-  @                  g                            SSSSS   SSSSS        g       SS     g                 T                    ####         #####    SSSSSSSSS
-##############################^^^#########    #########   ###################################################         ###########  o o o  #################################
+         BBBBBBB        ??                           SS   SS                   SS                                                   SSS               SSSSSS
+                                    n               SSS   SSS                  SS         11                                        SSS              SSSSSSS
+                                    MM             SSSS   SSSS                 SS         ||                                 ####BB#SSS#BB#####     SSSSSSSS
+  @                  g              ||            SSSSS   SSSSS        g    K  SS     g   ||            T                    ####         #####    SSSSSSSSS
+##############################^^^#########    #########   ###################################################  CCCCC  ###########  o o o  #################################
 ##########################################    #########   ###################################################         #####################################################
-= 2 brickworks     music=underground card=bricks
+
++ coin cave
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+S                              S
+S  o o o o o o o o o o o o o   S
+S                              S
+S              o o o           S
+S 11          SSSSSSS      22  S
+S ||                       ||  S
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+
+= 2 brickworks     music=underground card=bricks  par=75
 
 
 
@@ -43,28 +54,40 @@
                           SS                                  SSSS                                    SS
                           SS                                  SSSS                                    SS
                           SS                                  SSSS                                    SS o
-                          SS                                  SSSS                                    SS
+                          SS                                  SSSS                                    SS                22
                           SS o                                SSSS                                    SS   ######SSSSSSSSSSSSSSSSSSSS
                           SS                                  SSSS                                    SS o ######
                           SS                                  SSSS                                    SS   ######
                           SS o                                SSSS                                    SS   ######
                           SS                      h           SSSS                                    SS o ######
-                          SS                                  SSSS                                    SS   ######
-                          SS o #################BBBBBBBBBB##BBSSSS####                                SS   ######
+                          SS            K                     SSSS                                    SS   ######
+                          SS o #################BBBCCCCBBB##BBSSSS####                                SS   ######
                           SS   #################          ##BBSSSS####       ooo                      SS o ######
                           SS   #################          ##BBSSSS####                                SS   ######
-                          SS o #################          ##BBSSSS####      BBBBB                     SS   ######
+        ?                 SS o #################          ##BBSSSS####      BBBBB                     SS   ######
      o o o o              SS   #################          ##BBSSSS####                                SS o ######
                           SS   #################          ##BBSSSS####                                SS   ######
                           SS o #################          ##BBSSSS####                                SS   ######
-    BBBBBBBBB             SS   #################          ##BBSSSS####                                SS o ######
+    BBBBBBBBB             SS   #################          ##BBSSSS####                ~~~%            SS o ######
                           SS   #################          ##BBSSSS####        b           b           SS   ######
-                             o #################          ##BBSSSS####                                SS   ######
-          h                    #################          ##                                               ######    o o o o o
-  @                            #################          ##  o o o                                        ######
+                             o #################          ##BBSSSS####                          11    SS   ######
+          h                    #################          ##                       m            ||         ######    o o o o o
+  @                            #################          ##  o o o                MM           ||         ######
 ################################################^^^^^^^^^^###################^^^^######^^^^^^############################################
 #########################################################################################################################################
-= 3 spikes         music=athletic    card=spikes
+
++ brick cellar
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+S                              S
+S     o o o o o o o o o o      S
+S                              S
+S                              S
+S11  CCCCCCCCCCCCCCCCCCCCCC  22S
+S||                          ||S
+SSS^^^^^^^^^^^^^^^^^^^^^^^^^^SSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+
+= 3 spikes         music=athletic    card=spikes  par=80
 
 
 
@@ -88,16 +111,24 @@
                                                                                                                                            SSSS
                                                                                                             o                     ooo      SSSS
                                                                                                                                            SSSS
-                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                SSSSSSSSS  SSSS
-                                  SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS                              ##########        SSSSSSSSS  SSSS                                                                                     SS
-                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                        o     ##########                   SSSS                      o o o                                                         SSS
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                    11          SSSSSSSSS  SSSS
+                                  SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS                 *~~          ##########        SSSSSSSSS  SSSS                                                                                     SS
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                        o     ##########                   SSSS                      o o o                             *~~        ~~%              SSS
                                                                                                 o             ##########                   SSSS                                                                                   SSSS
-            o o o o                                                                                           ##########                   SSSS                                                                                  SSSSS
-                                                  oo         oo                                               ##########                   SSSS                              ###################         ##         ##         ###########
-  @                            g                                                                              ##########                   SSSS    g                         ###################         ##         ##         ###########
+            o o o o                                                                                           ##########                   SSSS                                           22                                     SSSSS
+                                                  oo         oo                             CCC     CCC       ##########                   SSSS                              ###################         ##         ##         ###########
+  @                            g                                                                              ##########     K             SSSS    g                         ###################         ##         ##         ###########
 ############^^^^^^^^######################^^^^^^^^##^^^^^^^^^##^^^^^^^^^##################^^^^^###^^^^^###^^^^#####################################################          ###################^^^^^^^^^##^^^^^^^^^##^^^^^^^^^###########
 ###################################################################################################################################################################          #############################################################
-= 4 sky            music=athletic    card=sky
+
++ sky shortcut bg=sky
+
+  o o o o o o o o o o o o o o o
+
+ 11                         22
+SSSS   CC    CC    CC    CCSSSSS
+
+= 4 sky            music=athletic    card=sky     par=80
 
 
 
@@ -105,22 +136,22 @@
                                                                                                                                                                                                     F
 
 
-
+                                                                                                                                                *~~~
 
                                                                                                                                               ooo             o        o
 
-                                                                                                                                            SSSSSSSSS                                    ################
+                                                                                                                                            SSSSSSSSS       CC       CC       CC         ################
                                                                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                   ################
                                                                                                      SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS                                 h                 ################
                                                                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                   ################
                                                                                                                                                                                          ################
                                                                                                                                                                                          ################
                                  o   o   o   o   o                                                                                                                                       ################
-                                                                                                                                                                                         ################
+                                                                                ?                                                                                                        ################
               o  o  o  o                                                 o             o                    o   o   o   o   o   o                                                        ################
-                                                                                                                                                                                         ################
-  @                                                                                                                                    T                                                 ################
-############             ######                    ######                                        ########                            ####                                                ################
+                           m                                                                                                                                                             ################
+  @                        MM                          11                                               K                            22T                                                 ################
+############             ######                    ######      CC      CC      CC      CC      CC########                            ####                                                ################
 ############             ######                    ######         h             h                ########                            ####                                                ################
 ############             ######                    ######                                        ########                            ####                                                ################
 ############             ######                    ######                                        ########                            ####                                                ################
@@ -130,7 +161,15 @@
 ############             ######                    ######                                        ########                            ####                                                ################
 ############             ######                    ######                                        ########                            ####                                                ################
 ############             ######                    ######                                        ########                            ####                                                ################
-= 5 hatrick        music=finale      card=castle
+
++ cloud garden bg=sky
+
+  o o o o o o o o o o o o o o
+
+ 11                         22
+SSSS    CCC     CCC     CCCSSSS
+
+= 5 hatrick        music=finale      card=castle  par=150
                        ^^^^^
                        SSSSS
                        SSSSS
@@ -139,7 +178,7 @@
                        SSSSS
                 o o    SSSSS
      SS                SSSSS
-     SS                SSSSS
+     SS         11     SSSSS
      SS   SSSSSSSSSSSBBSSSSS
      S^   SSSS       BBSSSSS                                                                                                                                                                           F
      S^   SSSS       BBSSSSS
@@ -150,11 +189,11 @@
      SS   ^SSS         SSSSS^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
      S^   SSSS         SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
      S^   SSSS         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                o     o                 o       o                                                               SSS
-     S^   SSSS                                                                                                                                                                             SSSS
+     S^   SSSS                             %~                    *~                                                                                                                        SSSS
      SS   ^SSS                                                                                                                                                                            SSSSS
-     SS   ^SSS                             oo         oo         oo                                                                                                                      SSSSSS
-     SS   ^SSS                                                                                                                                                                          SSSSSSS
-     SS   ^SSS         ###########^^^^^^^^^##^^^^^^^^^##^^^^^^^^^##^^^^^^^^^##########                  ##                             ##                             ########################################
+     SS   ^SSS                             oo         oo         oo                                     n                              m                                                 SSSSSS
+     SS   ^SSS                                                                 K   22                   MM                             MM                                               SSSSSSS
+     SS   ^SSS         ###########^^^^^^^^^##^^^^^^^^^##^^^^^^^^^##^^^^^^^^^##########        CC        ##        CC        CC         ##        CC        CC         ########################################
      S^   SSSS         ###############################################################                  ##                             ##                             ########################################
      S^   SSSS         ###############################################################                  ##                             ##                             ########################################
      S^   SSSS         ###############################################################                  ##                             ##                             ########################################
@@ -163,6 +202,19 @@
   @       SSSS         ###############################################################                  ##                             ##                             ########################################
 #############S^^^^^^^SS###############################################################                  ##                             ##                             ########################################
 #############S########################################################################                  ##                             ##                             ########################################
+
++ ember vault
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+S                                      S
+S   o   o   o   o   o   o   o   o      S
+S                                      S
+S                                      S
+S       *~~      %~~      *~~          S
+S                                      S
+S 11                               22  S
+S ||                               ||  S
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+
 = lab              music=athletic
 
 

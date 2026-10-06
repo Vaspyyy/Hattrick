@@ -2,7 +2,7 @@
 
 Run `./build.sh` to build, then `./hatrick` to play. Restart the game to load a newly built executable. The game loads its levels, music and sounds from `assets/` next to the executable at startup; all of them can be edited or swapped for your own, see [MODDING.md](MODDING.md). `./hatrick --silent` runs without touching the speakers; `--dump out.wav` additionally records the mix.
 
-The game opens on a destination menu with the five current levels and the movement playground. Use arrows or the controller stick/D-pad to choose, then Enter, Z/Space, controller A, or Start to play. You can also hover and click a card with the mouse. Entering a destination begins a fresh run there.
+The game opens on a destination menu with the five current levels, the movement playground and the high-score table. Use arrows or the controller stick/D-pad to choose, then Enter, Z/Space, controller A, or Start to play. You can also hover and click a card with the mouse. Entering a destination begins a fresh run there.
 
 During play, Esc or controller Start opens the menu and pauses the entire level. Switching to another window also pauses; keyboard and controller input are ignored while Hatrick is unfocused. Esc, X/C, or controller B resumes without reloading; selecting a destination starts it again. Q quits from either screen. M / controller View toggles sound. Hold a direction to repeat menu navigation.
 
@@ -35,12 +35,16 @@ During play, Esc or controller Start opens the menu and pauses the entire level.
 | Ledge grab / climb | Hold toward an exposed ledge while falling; Up or Jump climbs |
 | Drop from a ledge | Down or the opposite horizontal direction; Jump + away wall-jumps |
 | Slope roll | Down on a ramp rolls downhill; uphill slows the roll |
+| Enter a tube | Down on top of a brass tube that opens up; walk into one that opens sideways; Up while jumping into one that opens down |
+| Skip the course clear | Jump during the flag celebration (it goes straight to the next level) |
 | Movement playground | F1 opens ramps, ledges, and a low tunnel; F1 again returns to the first campaign level |
 | Destination menu / resume | Esc; X or C also resumes from the menu |
 | Restart / mute / quit | R / M / Q |
 | Volume | + / − (or keypad + / −), ten steps |
 
 Hold Down when a dive or long jump lands to flow into a roll. A spinning ground pound starts a faster roll. Spin jumps use low gravity on both ascent and descent. An air catch twirl gives a small upward pop and recharges the next throw's stall once per airborne cycle. Ground spins last up to 90 frames and allow a moving spin throw. Ground cap vaults launch higher than airborne cap bounces. Crouching and rolling shrink the collision box, and releasing Down under a low ceiling keeps the character tucked until there is room to stand.
+
+Levels have checkpoint flags (a death comes back to the last one touched; R restarts the whole level), brass tubes to bonus rooms and shortcuts, crumble blocks, hidden blocks found by a head bump from below, fire bars, and tube dwellers that only the cap can beat. The score counts coins, stomps, bricks and finds, plus a flag-height bonus and a bonus for every second under the level's par time. After the last level a top-ten score asks for three initials (Up/Down change a letter, Left/Right or Jump/Cap move, Jump on the last letter or Start saves) and is kept in `~/.hatrick_scores`; the last menu card shows the table. See [MODDING.md](MODDING.md) for how each object works in `levels.txt`.
 
 Holding the opposite horizontal direction brakes normal jumps, long jumps, and dives. After a dive landing, horizontal input regains ground control immediately. Release movement or release Down from a roll to brake on the ground. [Movement reference and measured stopping distances](PHYSICS.md).
 
@@ -57,3 +61,7 @@ Audio check (private Xvfb, records the mix through the silent device): `python3 
 Focused menu checks: `gcc -O1 -w tools/test_menu.c -o /tmp/hatrick-menu-tests && /tmp/hatrick-menu-tests`. Native keyboard/mouse menu playtest and screenshot capture: `python3 tools/test_menu_native.py`.
 
 Level file checks (levels.txt parsing, error reports, menu paging): `gcc -O1 -w tools/test_levels.c -o /tmp/hatrick-level-tests && /tmp/hatrick-level-tests`.
+
+Level object checks (checkpoints, tubes and rooms, crumble and hidden blocks, fire bars, tube dwellers, points, the course clear, high scores): `gcc -O1 -w tools/test_features.c -o /tmp/hatrick-feature-tests && /tmp/hatrick-feature-tests`. Native playtest of the same objects on a private Xvfb with silent audio, a throwaway HOME and screenshots in `/tmp/hatrick-feature-playtest/`: `python3 tools/playtest_features.py`.
+
+Level proofs: `tas/1.tas` to `tas/5.tas` beat each level in the simulator, and `tas/1-bonus.tas` to `tas/5-bonus.tas` beat it again through its bonus room (`./sim 0 tas/1.tas` … `./sim 4 tas/5.tas`, or all at once with the movement checks' `--routes`). `python3 tools/route.py LEVEL out.tas [wp=X,Y[,ROOM] ...]` searches for a new one after level or movement changes.

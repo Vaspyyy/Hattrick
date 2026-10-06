@@ -30,11 +30,12 @@ static const char *const SOUND_FILE[NSOUND] = {
   "sfx/coin", "sfx/jump", "sfx/jump2", "sfx/jump3", "sfx/flip", "sfx/longjump", "sfx/spin", "sfx/roll", "sfx/dive",
   "sfx/cap_throw", "sfx/cap_catch", "sfx/cap_bounce", "sfx/stomp", "sfx/brick", "sfx/gp_spin", "sfx/gp_land",
   "sfx/spring", "sfx/wall_jump", "sfx/land", "sfx/skid", "sfx/ledge", "sfx/menu_move", "sfx/menu_ok",
-  "sfx/menu_back", "sfx/pause", "music/jingle_clear", "music/jingle_death",
+  "sfx/menu_back", "sfx/pause", "sfx/checkpoint", "sfx/tube", "sfx/crumble", "sfx/reveal", "sfx/spit", "sfx/emerge",
+  "sfx/tick", "sfx/bonus", "music/jingle_clear", "music/jingle_death",
 };
 
 typedef struct { float *pcm; ma_uint64 frames; } Clip;
-typedef struct { int clip; ma_uint64 pos; float l, r; } Voice;
+typedef struct { int clip; ma_uint64 pos; float l, r, fade; } Voice;   // fade > 0: stopping, gain left
 typedef struct {
   ma_decoder dec[NSTEM]; int has[NSTEM];
   char theme[64];                          // folder name in assets/music/
@@ -119,11 +120,15 @@ static void callback(ma_device *dev, void *output, const void *input, ma_uint32 
   // new sounds
   int r = atomic_load(&A.qr), w = atomic_load_explicit(&A.qw, memory_order_acquire);
   for (; r != w; r = (r + 1) % QLEN) {
+    if (A.qsound[r] < 0) {   // snd_stop: fade every voice of that sound out over 10 ms
+      for (Voice *v = A.voice; v < A.voice + NVOICE; v++) if (v->clip == -1 - A.qsound[r] && !v->fade) v->fade = 1;
+      continue;
+    }
     Voice *v = A.voice, *best = A.voice;
     for (; v < A.voice + NVOICE; v++) { if (v->clip < 0) break; if (v->pos > best->pos) best = v; }
     if (v == A.voice + NVOICE) v = best;   // all busy: replace the one that has played longest
     float p = A.qpan[r] * 0.5f;
-    v->clip = A.qsound[r]; v->pos = 0; v->l = p > 0 ? 1 - p : 1; v->r = p < 0 ? 1 + p : 1;
+    v->clip = A.qsound[r]; v->pos = 0; v->l = p > 0 ? 1 - p : 1; v->r = p < 0 ? 1 + p : 1; v->fade = 0;
   }
   atomic_store(&A.qr, r);
   // music: every stem advances by the same n frames
@@ -162,7 +167,10 @@ static void callback(ma_device *dev, void *output, const void *input, ma_uint32 
     Clip *c = &A.clip[v->clip];
     ma_uint64 k = c->frames - v->pos < n ? c->frames - v->pos : n;
     const float *s = c->pcm + 2 * v->pos;
-    for (ma_uint64 i = 0; i < k; i++) { o[2 * i] += s[2 * i] * v->l; o[2 * i + 1] += s[2 * i + 1] * v->r; }
+    if (v->fade) {
+      for (ma_uint64 i = 0; i < k && v->fade > 0; i++, v->fade -= 1.0f / 480) { o[2 * i] += s[2 * i] * v->l * v->fade; o[2 * i + 1] += s[2 * i + 1] * v->r * v->fade; }
+      if (v->fade <= 0) { v->clip = -1; continue; }
+    } else for (ma_uint64 i = 0; i < k; i++) { o[2 * i] += s[2 * i] * v->l; o[2 * i + 1] += s[2 * i + 1] * v->r; }
     v->pos += k;
     if (v->pos >= c->frames) v->clip = -1;
   }
@@ -226,6 +234,15 @@ void snd_play(int sound, float pan) {
   if (next == atomic_load(&A.qr)) return;   // queue full: drop
   A.qsound[w] = sound; A.qpan[w] = pan;
   if (A.log) fprintf(stderr, "%.3f play %s\n", now() - A.t0, strrchr(SOUND_FILE[sound], '/') + 1);
+  atomic_store_explicit(&A.qw, next, memory_order_release);
+}
+
+void snd_stop(int sound) {
+  if (!A.ok || sound < 0 || sound >= NSOUND) return;
+  int w = atomic_load(&A.qw), next = (w + 1) % QLEN;
+  if (next == atomic_load(&A.qr)) return;
+  A.qsound[w] = -1 - sound;
+  if (A.log) fprintf(stderr, "%.3f stop %s\n", now() - A.t0, strrchr(SOUND_FILE[sound], '/') + 1);
   atomic_store_explicit(&A.qw, next, memory_order_release);
 }
 
