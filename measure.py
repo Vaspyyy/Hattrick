@@ -1,6 +1,6 @@
 # Runs input scripts in the simulator on the flat lab level and reports every airborne arc.
 import subprocess,sys
-LAB=str(sum(l.startswith("=") and not l[1:].strip().startswith("lab") for l in open("levels.txt")))  # lab levels come last
+LAB=str(sum(l.startswith("=") and not l[1:].strip().startswith("lab") for l in open("assets/levels.txt")))  # lab levels come last
 def run(tas):
     open("/tmp/claude-1000/m.tas","w").write("\n".join(tas)+"\n")
     out=subprocess.run(["./sim",LAB,"/tmp/claude-1000/m.tas","trace"],capture_output=True,text=True).stdout

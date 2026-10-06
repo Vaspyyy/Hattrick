@@ -70,20 +70,22 @@ with tempfile.TemporaryDirectory(prefix='hatrick-audio-test-') as tmp:
         assert pause < play - 6 and pause < resume - 6, 'pausing ducks the music'
         print(f'PASS: {len(x) / 48000:.1f} s of mix, peak {np.abs(x).max():.2f}, no clipping')
 
-        # drop-in replacements: a WAV in place of an OGG, a missing sound, and an overworld theme made
-        # of a single 44.1 kHz mono FLAC stem (shorter than the old loop) without music.txt
+        # drop-in replacements: a WAV in place of an OGG, a missing sound, and a levels.txt that gives
+        # Hills a new theme folder holding a single 44.1 kHz mono FLAC stem, without music.txt
         mod = base / 'mod'; (mod / 'assets').mkdir(parents=True)
         shutil.copy(binary, mod / 'audio-test')
         shutil.copytree(REPO / 'assets' / 'sfx', mod / 'assets' / 'sfx')
-        shutil.copytree(REPO / 'assets' / 'music', mod / 'assets' / 'music', ignore=shutil.ignore_patterns('overworld'))
+        shutil.copytree(REPO / 'assets' / 'music', mod / 'assets' / 'music')
+        stock = (REPO / 'assets' / 'levels.txt').read_text()
+        (mod / 'assets' / 'levels.txt').write_text(stock.replace('music=overworld', 'music=mysong', 1))
         (mod / 'assets' / 'sfx' / 'jump.ogg').unlink()
         (mod / 'assets' / 'sfx' / 'menu_ok.ogg').unlink()
         with wave.open(str(mod / 'assets' / 'sfx' / 'menu_ok.wav'), 'wb') as w:
             w.setnchannels(1); w.setsampwidth(2); w.setframerate(22050)
             w.writeframes((np.sin(np.arange(4410) * 2 * np.pi * 880 / 22050) * 12000).astype('<i2').tobytes())
-        (mod / 'assets' / 'music' / 'overworld').mkdir()
+        (mod / 'assets' / 'music' / 'mysong').mkdir()
         subprocess.run(['ffmpeg', '-loglevel', 'error', '-f', 'lavfi', '-i', 'sine=frequency=330:sample_rate=44100:duration=2.5',
-                        '-ac', '1', str(mod / 'assets' / 'music' / 'overworld' / 'bass.flac')], check=True)
+                        '-ac', '1', str(mod / 'assets' / 'music' / 'mysong' / 'bass.flac')], check=True)
         wav = mod / 'mix.wav'
         with (mod / 'log').open('w') as log:
             game = subprocess.Popen([str(mod / 'audio-test'), '--dump', str(wav)], cwd=mod, env=env, stderr=log, stdout=subprocess.DEVNULL)
@@ -99,6 +101,7 @@ with tempfile.TemporaryDirectory(prefix='hatrick-audio-test-') as tmp:
         assert game.returncode == 0, 'modded game did not quit cleanly'
         assert 'no sound file for sfx/jump' in text and 'jump' not in names, 'a missing sound is reported and stays silent'
         assert 'menu_ok' in names and 'cannot decode' not in text, 'the WAV replacement plays'
+        assert names[0] == 'mysong' and 'overworld' not in names, 'levels.txt picks the theme folder'
         x = np.frombuffer(wav.read_bytes()[44:], np.float32).reshape(-1, 2)
         seg = x[int((menu_end - 1.0) * 48000):int(menu_end * 48000), 0]
         peak = np.argmax(np.abs(np.fft.rfft(seg))) * 48000 / len(seg)

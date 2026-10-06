@@ -1,6 +1,6 @@
 # Hatrick movement
 
-Run `./build.sh` to build, then `./hatrick` to play. Restart the game to load a newly built executable. The game loads its music and sounds from `assets/` next to the executable (any of them can be swapped for your own files, see [MODDING.md](MODDING.md)). `./hatrick --silent` runs without touching the speakers; `--dump out.wav` additionally records the mix.
+Run `./build.sh` to build, then `./hatrick` to play. Restart the game to load a newly built executable. The game loads its levels, music and sounds from `assets/` next to the executable at startup; all of them can be edited or swapped for your own, see [MODDING.md](MODDING.md). `./hatrick --silent` runs without touching the speakers; `--dump out.wav` additionally records the mix.
 
 The game opens on a destination menu with the five current levels and the movement playground. Use arrows or the controller stick/D-pad to choose, then Enter, Z/Space, controller A, or Start to play. You can also hover and click a card with the mouse. Entering a destination begins a fresh run there.
 
@@ -55,3 +55,5 @@ Focused movement checks: `gcc -O1 -w tools/test_movement.c -o /tmp/hatrick-movem
 Audio check (private Xvfb, records the mix through the silent device): `python3 tools/test_audio.py`.
 
 Focused menu checks: `gcc -O1 -w tools/test_menu.c -o /tmp/hatrick-menu-tests && /tmp/hatrick-menu-tests`. Native keyboard/mouse menu playtest and screenshot capture: `python3 tools/test_menu_native.py`.
+
+Level file checks (levels.txt parsing, error reports, menu paging): `gcc -O1 -w tools/test_levels.c -o /tmp/hatrick-level-tests && /tmp/hatrick-level-tests`.

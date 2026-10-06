@@ -1,10 +1,10 @@
-# Draws a level from levels.txt with the hero path of a TAS run on top (needs Pillow).
+# Draws a level from assets/levels.txt with the hero path of a TAS run on top (needs Pillow).
 # usage: python3 view.py LEVEL file.tas out.png [x0 x1]   (x range in tiles, default whole level)
 import subprocess, sys
 from PIL import Image, ImageDraw
 lvl, tas, out = int(sys.argv[1]), sys.argv[2], sys.argv[3]
 levels, labs, cur = [], [], None   # same order as mklevels.py: lab levels last
-for line in open("levels.txt").read().split("\n"):
+for line in open("assets/levels.txt").read().split("\n"):
     if line.startswith("="):
         cur = []
         (labs if line[1:].strip().startswith("lab") else levels).append(cur)

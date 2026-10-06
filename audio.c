@@ -24,7 +24,6 @@
 #define MAXBAH 256
 
 static const char *const EXT[] = { "ogg", "wav", "flac", "mp3" };
-static const char *const THEME_NAME[] = { "overworld", "underground", "athletic", "finale" };
 static const char *const STEM_NAME[NSTEM] = { "lead", "bass", "perc", "bells", "fast", "arp", "bah" };
 
 static const char *const SOUND_FILE[NSOUND] = {
@@ -38,7 +37,7 @@ typedef struct { float *pcm; ma_uint64 frames; } Clip;
 typedef struct { int clip; ma_uint64 pos; float l, r; } Voice;
 typedef struct {
   ma_decoder dec[NSTEM]; int has[NSTEM];
-  int theme;
+  char theme[64];                          // folder name in assets/music/
   ma_uint64 frames, pos;                   // loop length (the longest stem) and playhead, audio thread
   double bpm; int nbah; double bah[MAXBAH];   // from music.txt; bpm 0 = unknown (no enemy hops)
 } Music;
@@ -230,15 +229,15 @@ void snd_play(int sound, float pan) {
   atomic_store_explicit(&A.qw, next, memory_order_release);
 }
 
-void snd_theme(int theme, int restart) {
+void snd_theme(const char *theme, int restart) {
   if (!A.ok) return;
-  if (A.music && A.music->theme == theme && !restart) return;
-  if (A.log) fprintf(stderr, "%.3f theme %s\n", now() - A.t0, THEME_NAME[theme]);
+  if (A.music && !strcmp(A.music->theme, theme) && !restart) return;
+  if (A.log) fprintf(stderr, "%.3f theme %s\n", now() - A.t0, theme);
   Music *m = calloc(1, sizeof *m);
-  m->theme = theme;
+  snprintf(m->theme, sizeof m->theme, "%s", theme);
   char path[1200], name[256];
   for (int s = 0; s < NSTEM; s++) {   // any stem may be missing; it is simply silent
-    snprintf(name, sizeof name, "music/%s/%s", THEME_NAME[theme], STEM_NAME[s]);
+    snprintf(name, sizeof name, "music/%s/%s", theme, STEM_NAME[s]);
     if (!find(path, sizeof path, name)) continue;
     ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, 2, RATE);
     if (ma_decoder_init_file(path, &cfg, &m->dec[s]) != MA_SUCCESS) { fprintf(stderr, "hatrick: cannot decode %s\n", path); continue; }
@@ -246,10 +245,10 @@ void snd_theme(int theme, int restart) {
     ma_uint64 n = stem_length(&m->dec[s]);
     if (n > m->frames) m->frames = n;
   }
-  snprintf(path, sizeof path, "%s/music/%s/music.txt", A.dir, THEME_NAME[theme]);
+  snprintf(path, sizeof path, "%s/music/%s/music.txt", A.dir, theme);
   read_info(m, path);
   if (!m->frames) {   // no playable stems: no music for this theme
-    fprintf(stderr, "hatrick: no music in %s/music/%s\n", A.dir, THEME_NAME[theme]);
+    fprintf(stderr, "hatrick: no music in %s/music/%s\n", A.dir, theme);
     for (int s = 0; s < NSTEM; s++) if (m->has[s]) ma_decoder_uninit(&m->dec[s]);
     free(m); m = NULL;
   }

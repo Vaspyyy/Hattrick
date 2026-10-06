@@ -1,4 +1,4 @@
-// Hatrick: a tiny cap-throwing platformer for Linux/X11 (i386, no libc).
+// Hatrick: a tiny cap-throwing platformer for Linux/X11. Levels, music and sounds load from assets/ (MODDING.md).
 // Arrows move, Z/Y or Space jumps, X/C throws the cap, Down crouches / ground pounds.
 // Down + cap rolls on the ground; Down + X dives in the air. Up + jump spins,
 // Up + cap throws upward, Down + C throws downward in the air.
@@ -10,6 +10,10 @@
 #include <X11/Xutil.h>
 #include "gfx.h"
 #include "sound.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include "levels.h"
 
 typedef unsigned char u8;
@@ -44,7 +48,7 @@ typedef unsigned u32;
 #define START (1<<22)
 #define QUIT (1<<23)
 #define MENUBACK (1<<24)
-#define MENUN (NLV+1)
+#define MENUN (NLV + (PLAY >= 0))
 #define GPJUMP_V 1400
 enum { NORM, LONGJ, GPWIND, GPSLAM, GPLAND, DIVE, SLIDE, ROLL, SPINJ, GSPIN, HANG, CLIMB, DEAD, WIN };
 enum { CAPFORWARD, CAPUP, CAPDOWN, CAPSPIN };
@@ -94,6 +98,118 @@ static void sfx(int i) { if (nsnd < 16) sndq[nsnd++] = i; }
 // 6 ground-pound landing, 7 death, 8 goal. The strongest request in a frame is played.
 static int rumq;
 static void rumble(int k) { if (k > rumq) rumq = k; }
+
+// ---------- levels ----------
+// levels.txt (see MODDING.md) is read at startup from assets/ next to the executable; the copy
+// built into the binary (levels.h) is used when it is missing or has no valid level. Campaign
+// levels come first in file order, then the "lab" levels; the last lab is the movement playground.
+enum { CARD_HILLS, CARD_BRICKS, CARD_SPIKES, CARD_SKY, CARD_CASTLE, CARD_PLAYGROUND, NCARD };
+static const char *const CARDNAME[NCARD] = { "hills", "bricks", "spikes", "sky", "castle", "playground" };
+typedef struct { char name[40], music[64]; int card, lab, w; u8 grid[MH][MW]; } Level;
+static Level *LV;
+static int NLV, NLEVEL, PLAY = -1;   // campaign levels, all levels, playground index (-1: none)
+static const char TILECH[] = " #B^STo\x7f/\\", ENEMYCH[] = " gbh";   // index = tile type (7 unused) / enemy type
+
+static void levelerr(const char *file, int line, const char *fmt, const char *arg, int num) {
+  fprintf(stderr, "hatrick: %s:%d: ", file, line); fprintf(stderr, fmt, arg, num); fputc('\n', stderr);
+}
+// Reads a level header "= 1 hills music=overworld card=hills".
+static void parseheader(Level *L, char *h, const char *file, int line) {
+  char name[40] = "", *w, *ws = 0;
+  memset(L, 0, sizeof *L); strcpy(L->music, "overworld");
+  for (w = strtok_r(h, " \t", &ws); w; w = strtok_r(0, " \t", &ws)) {
+    char *eq = strchr(w, '=');
+    if (!eq) { if (strlen(name) + strlen(w) + 2 < sizeof name) strcat(strcat(name, *name ? " " : ""), w); continue; }
+    *eq++ = 0;
+    if (!strcmp(w, "music")) snprintf(L->music, sizeof L->music, "%s", eq);
+    else if (!strcmp(w, "card")) {
+      int c = 0; while (c < NCARD && strcmp(eq, CARDNAME[c])) c++;
+      if (c < NCARD) L->card = c; else levelerr(file, line, "unknown card \"%s\" (use hills, bricks, spikes, sky, castle or playground)", eq, 0);
+    } else levelerr(file, line, "unknown option \"%s\" (use music= or card=)", w, 0);
+  }
+  L->lab = !strncmp(name, "lab", 3);
+  char *p = name; while ((*p >= '0' && *p <= '9') || *p == ' ') p++;   // "1 hills" -> "HILLS"
+  for (int i = 0; p[i] && i < (int)sizeof L->name - 1; i++) L->name[i] = p[i] >= 'a' && p[i] <= 'z' ? p[i]-32 : p[i];
+}
+// Parses a whole levels.txt. Broken levels are reported (file name and line) and skipped;
+// returns 0 if no campaign level is usable, leaving the current levels in place.
+static int parselevels(const char *text, const char *file) {
+  char *copy = strdup(text);
+  int nl = 1; for (char *c = copy; *c; c++) nl += *c == '\n';
+  char **ln = malloc(nl * sizeof *ln);
+  ln[0] = copy; nl = 1;
+  for (char *c = copy; *c; c++) if (*c == '\n') *c = 0, ln[nl++] = c+1;
+  for (int i = 0; i < nl; i++) {   // trailing spaces and CRs never matter
+    size_t len = strlen(ln[i]);
+    while (len && (ln[i][len-1] == '\r' || ln[i][len-1] == ' ' || ln[i][len-1] == '\t')) ln[i][--len] = 0;
+  }
+  Level *out = calloc(1, sizeof *out); int n = 0;
+  for (int h = 0; h < nl; h++) {
+    if (ln[h][0] != '=') continue;
+    out = realloc(out, (n+1) * sizeof *out);
+    Level *L = out + n;
+    parseheader(L, ln[h]+1, file, h+1);
+    int end = h+1; while (end < nl && ln[end][0] != '=') end++;
+    int row[MH + 1], nr = 0, last = -1, ok = 1, sx = -1, fx = -1, nen = 0;
+    for (int i = h+1; i < end; i++) if (ln[i][0] != ';') { if (ln[i][0]) last = i; }
+    for (int i = h+1; i <= last && ok; i++) {   // rows up to the last non-empty one
+      if (ln[i][0] == ';') continue;
+      if (nr == MH) { levelerr(file, h+1, "level \"%s\" is taller than %d rows, skipped", L->name, MH); ok = 0; break; }
+      row[nr++] = i;
+    }
+    for (int r = 0; r < nr && ok; r++) {
+      const char *l = ln[row[r]]; int y = MH - nr + r;   // rows sit at the bottom of the map
+      int len = strlen(l);
+      if (len > MW) { levelerr(file, row[r]+1, "level \"%s\" is wider than %d columns, skipped", L->name, MW); ok = 0; break; }
+      if (len > L->w) L->w = len;
+      for (int x = 0; x < len; x++) {
+        char c = l[x];
+        if (c == '@') sx = x; else if (c == 'F') fx = x; else if (c != ' ' && strchr(ENEMYCH+1, c)) nen++;
+        else if (c != ' ' && (c == 0x7f || !strchr(TILECH+1, c))) {
+          char ch[2] = { c, 0 };
+          levelerr(file, row[r]+1, "unknown tile '%s' in column %d, left empty", ch, x+1); c = ' ';
+        }
+        L->grid[y][x] = c == ' ' ? 0 : c;
+      }
+    }
+    if (ok && sx < 0) levelerr(file, h+1, "level \"%s\" has no start (@), skipped", L->name, 0), ok = 0;
+    if (ok && fx < 0) levelerr(file, h+1, "level \"%s\" has no flag (F), skipped", L->name, 0), ok = 0;
+    if (ok && nen > (int)(sizeof en / sizeof *en))
+      levelerr(file, h+1, "level \"%s\" has too many enemies (at most %d), skipped", L->name, (int)(sizeof en / sizeof *en)), ok = 0;
+    n += ok;
+    h = end - 1;
+  }
+  free(ln); free(copy);
+  int camp = 0; for (int i = 0; i < n; i++) camp += !out[i].lab;
+  if (!camp) { fprintf(stderr, "hatrick: %s: no playable level\n", file); free(out); return 0; }
+  Level *sorted = malloc(n * sizeof *sorted); int k = 0;   // campaign first, then labs, in file order
+  for (int pass = 0; pass < 2; pass++) for (int i = 0; i < n; i++) if (out[i].lab == pass) sorted[k++] = out[i];
+  free(out); free(LV);
+  LV = sorted; NLV = camp; NLEVEL = n; PLAY = n > camp ? n-1 : -1;
+  return 1;
+}
+static int readlevels(const char *path) {
+  FILE *f = fopen(path, "rb");
+  if (!f) return 0;
+  char *text = 0; size_t n = 0, cap = 0, got;
+  do { if (n + 4096 >= cap) text = realloc(text, cap = cap*2 + 8192); got = fread(text + n, 1, cap - n - 1, f); n += got; } while (got);
+  fclose(f); text[n] = 0;
+  int ok = parselevels(text, path);
+  free(text);
+  return ok;
+}
+__attribute__((constructor)) static void builtinlevels(void) { parselevels(LEVELS_TXT, "built-in levels.txt"); }
+// The assets folder next to the running executable.
+static void assetdir(char *dir, size_t size) {
+  ssize_t n = readlink("/proc/self/exe", dir, size - 16);
+  if (n > 0) { dir[n] = 0; char *slash = strrchr(dir, '/'); if (slash) *slash = 0; } else strcpy(dir, ".");
+  strcat(dir, "/assets");
+}
+static void modlevels(void) {
+  char dir[1024], path[1100];
+  assetdir(dir, sizeof dir); snprintf(path, sizeof path, "%s/levels.txt", dir);
+  readlevels(path);
+}
 
 static int tile(int x, int y) { return x < 0 ? 4 : x >= lw || y < 0 || y >= MH ? 0 : map[y][x]; }
 // First tile of a type in mask m under the pixel rect; its position goes to htx/hty.
@@ -177,17 +293,17 @@ static void smash(int tx, int ty) { map[ty][tx] = 0; burst(tx*8+4, ty*8+4, 0xd06
 static void die(void) { if (st < DEAD) { st = DEAD; stt = 0; hvy = -900; hvx = 0; deaths++; sfx(S_DEATH); rumble(7); } }
 
 static void load(void) {
-  const u8 *p = LV[lvl];
-  for (u8 *m = map[0]; m < map[0]+MH*MW; m++) *m = 0;
+  const Level *L = LV + lvl;
   ne = 0;
-  hx = p[0] << 11; hy = p[1] << 11;
-  for (p += 2;; p += 4) {
-    int x = p[0], y = p[1] & 31, t = p[1] >> 5, w = p[2], h = p[3];
-    if (!t) { gx = x; gy = y; lw = w; break; }
-    if (t == 7 && !h) { map[y][x] = w; continue; }
-    if (t == 7) { E *e = en + ne++; e->x = x << 11; e->y = e->h = y << 11; e->vx = -100; e->vy = 0; e->t = w; e->a = 1; continue; }
-    for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) map[y+j][x+i] = t;
+  for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++) {
+    int c = L->grid[y][x];
+    const char *t = c ? strchr(TILECH, c) : 0, *e = c ? strchr(ENEMYCH, c) : 0;
+    map[y][x] = t ? t - TILECH : 0;
+    if (c == '@') hx = x << 11, hy = (y-1) << 11;
+    if (c == 'F') gx = x, gy = y;
+    if (e) { E *n = en + ne++; n->x = x << 11; n->y = n->h = y << 11; n->vx = -100; n->vy = 0; n->t = e - ENEMYCH; n->a = 1; }
   }
+  lw = L->w;
   for (gb = gy*8; gb < MH*8 && !scan(gx*8+3, gb, 1, 1, SOLID); gb++);
   hvx = hvy = st = stt = jn = cst = lock = spin = skid = fr = gnd = jbuf = coy = wall = cut = capok = diveok = stall = cready = throwt = 0;
   duck = catcht = catchok = twirl = gpspin = rollbuf = cvy = ckind = 0;
@@ -513,7 +629,7 @@ static void enemies(int k) {
 }
 
 static void destination(int choice) {
-  lvl = choice == NLV ? NLV+1 : choice;
+  lvl = choice == NLV ? PLAY : choice;
   deaths = coins = lcoins = tim = done = shake = rumq = 0;
   for (P *p = pt; p < pt+NP; p++) p->l = 0;
   menu = 0; resumable = 1; load(); sfx(S_MENUOK);
@@ -532,7 +648,7 @@ static void menutick(int k, int pr) {
   if (pr & MENUBACK) { if (resumable) menu = 0, sfx(S_MENUBACK); return; }
   if (pr & 32 && resumable) { menu = 0; sfx(S_MENUBACK); return; }
   if (pr & (16|START)) { destination(menusel); return; }
-  if (pr & PRACTICE) { destination(NLV); return; }
+  if (pr & PRACTICE && PLAY >= 0) { destination(NLV); return; }
   int axis = moveaxis(k);
   int nav = k & 12 ? (k & 8 ? 3 : -3) : axis > 128 ? 1 : axis < -128 ? -1 : 0;
   if (nav && (nav != menunav || --menurepeat <= 0)) {
@@ -550,7 +666,7 @@ static void tick(int k) {
   if (pr & QUIT) { quitting = 1; return; }
   if (menu) { menutick(k, pr); return; }
   if (pr & (BACK|START)) { openmenu(k); return; }
-  if (pr & PRACTICE) { lvl = lvl >= NLV ? 0 : NLV+1; done = lcoins = 0; load(); return; }
+  if (pr & PRACTICE && PLAY >= 0) { lvl = lvl >= NLV ? 0 : PLAY; done = lcoins = 0; load(); return; }
   if (pr & 64) { if (done) lvl = deaths = lcoins = tim = done = 0; load(); return; }
   fr++;
   if (!done) tim++;
@@ -694,8 +810,8 @@ static void mhat(int x,int y) {
   mround(x,y+7,30,5,2,0x733431);mround(x+1,y+7,28,3,1,0xffa449);
   mrect(x+7,y+3,9,1,0xffce77);mrect(x+5,y+6,17,2,0xa5482d);
 }
-static void menupreview(int choice,int x,int y) {
-  u32 sky=choice==1?0x7da8d3:choice==3?0x546cbe:0x6cb9e7;
+static void menupreview(int card,int x,int y) {
+  u32 sky=card==CARD_BRICKS?0x7da8d3:card==CARD_SKY?0x546cbe:0x6cb9e7;
   for(int row=0;row<45;row++)mrect(x,y+row,186,1,mixcolor(sky,0xbde6ee,row,70));
   mcloud(x+12,y+4,43);mcloud(x+112,y+2,53);
   for(int u=0;u<186;u++) {
@@ -704,7 +820,7 @@ static void menupreview(int choice,int x,int y) {
     int b=(u+70)%110-55,near=30+b*b/190;
     if(near<45)mrect(x+u,y+near,1,45-near,0x5aaa66);
   }
-  if(choice==3) {
+  if(card==CARD_SKY) {
     for(int i=0;i<3;i++) {
       int xx=x+23+i*52,yy=y+32-i*9;
       mround(xx,yy,42,8,4,0xaccde9);mround(xx,yy-2,42,7,3,0xffffed);
@@ -714,27 +830,27 @@ static void menupreview(int choice,int x,int y) {
   } else {
     mrect(x,y+36,186,9,0x9b623f);mrect(x,y+33,186,3,0x327d4f);mrect(x,y+32,186,1,0xb9e381);
     for(int u=0;u<186;u+=7)mrect(x+u,y+36+(u%3),2,1,0xc2864e);
-    if(choice==1)for(int i=0;i<5;i++) {
+    if(card==CARD_BRICKS)for(int i=0;i<5;i++) {
       int xx=x+50+i*23,yy=y+27-(i&1)*8;
       mrect(xx,yy,21,11,0x9f4e39);mrect(xx+1,yy+1,19,9,0xda8d50);
       mrect(xx+2,yy+1,17,1,0xffcd83);mrect(xx+10,yy+2,1,7,0xae603d);
     }
-    if(choice==2)for(int i=0;i<6;i++) {
+    if(card==CARD_SPIKES)for(int i=0;i<6;i++) {
       int xx=x+59+i*14;
       for(int v=0;v<9;v++){mrect(xx-v/2,y+25+v,v+1,1,0x4c6383);mrect(xx-v/2,y+25+v,v/2+1,1,0xe8f4f3);}
     }
-    if(choice==4) {
+    if(card==CARD_CASTLE) {
       mrect(x+109,y+9,50,25,0x637e9d);mrect(x+111,y+10,46,24,0xb9c7cd);
       for(int row=0;row<3;row++)for(int i=0;i<4;i++)mrect(x+112+i*12+(row&1)*5,y+13+row*8,9,1,0x90a5b6);
       for(int i=0;i<4;i++){mrect(x+108+i*14,y+4,9,7,0x6a849e);mrect(x+109+i*14,y+4,7,5,0xdde6dc);}
       mround(x+129,y+22,12,15,5,0x405c7a);mrect(x+134,y+27,1,8,0x1f3e61);
       mline(x+142,y+4,x+142,y-1,0xffefc5);mrect(x+143,y-1,9,3,0xe56c59);
     }
-    if(choice==NLV) {
+    if(card==CARD_PLAYGROUND) {
       for(int u=0;u<63;u++) {int h=u<33?u/3:(62-u)/3;mrect(x+89+u,y+32-h,1,h+1,0x368950);mrect(x+89+u,y+31-h,1,1,0xb5e687);}
       mrect(x+148,y+24,24,9,0x829daf);mrect(x+148,y+23,24,2,0xc7d8d4);
     }
-    if(choice==0) {
+    if(card==CARD_HILLS) {
       mline(x+139,y+15,x+139,y+33,0x466983);mline(x+140,y+15,x+140,y+33,0xfff5c7);
       for(int u=0;u<16;u++)mrect(x+141+u,y+15,1,7-u/3,0xe76d5b);
       for(int i=0;i<3;i++){int xx=x+64+i*14;mline(xx,y+29,xx,y+32,0x378552);mellipse(xx,y+27,2,2,0xffec9f);mrect(xx,y+27,1,1,0xe99554);}
@@ -797,11 +913,12 @@ static void menurender(void) {
     mround(x,y,198,81,5,active?0xad7244:0x56779a);
     mround(x,y-1,198,79,5,active?0xffdb87:0xe8e6d2);
     mround(x+2,y+1,194,75,3,active?0xeaaa5d:0x658baa);
-    menupreview(choice,x+6,y+5);
+    menupreview(LV[choice==NLV?PLAY:choice].card,x+6,y+5);
     mrect(x+6,y+50,186,1,active?0xba884f:0x7694a4);
     for(int row=0;row<24;row++)mrect(x+6,y+51+row,186,1,mixcolor(active?0xffedb2:0xfff5dc,active?0xf5d388:0xe7e8d7,row,32));
-    const char *name=choice==NLV?"PLAYGROUND":LNAME[choice];
-    int width=textwidth(name,1);char number[2]={'1'+choice,0};
+    const char *name=choice==NLV?"PLAYGROUND":LV[choice].name;
+    char number[12];snprintf(number,sizeof number,"%d",choice+1);
+    int width=textwidth(name,1);
     if(width>186)name=number,width=textwidth(number,1);
     menutext(name,x+(198-width)/2+1,y+54,1,0xd2c4a1);
     menutext(name,x+(198-width)/2,y+53,1,0x2c4162);
@@ -1116,13 +1233,9 @@ static int padkeys(void) {
 }
 
 // ---------- audio director: picks the theme and stem levels from the game state ----------
-static int themeof(int l) {
-  static const int T[] = { T_OVERWORLD, T_UNDERGROUND, T_ATHLETIC, T_ATHLETIC, T_FINALE };
-  return l < (int)(sizeof T / sizeof *T) && l < NLV ? T[l] : T_ATHLETIC;   // the playground is athletic
-}
-
 static void director(void) {
-  static int theme = -1, seen = -1, fastt, arpt, quiet, dead;
+  static char theme[64];
+  static int seen = -1, fastt, arpt, quiet, dead;
   const float MUSIC = 0.75f;
   // this frame's sounds, panned a little by where Hatrick is on screen
   float pan = ((hx >> 8) + 3 - (cxf >> 8) - W/2) / (float)(W/2) * 0.6f;
@@ -1131,10 +1244,11 @@ static void director(void) {
     snd_play(sndq[i], menu ? 0 : pan < -0.6f ? -0.6f : pan > 0.6f ? 0.6f : pan);
   }
   nsnd = 0;
-  // theme: the title menu plays a calm overworld; each level its own; restart after a (re)load
-  int want = menu && !resumable ? T_OVERWORLD : themeof(lvl);
+  // theme (levels.txt music=): the title menu plays a calm mix of the first level's;
+  // restart after a (re)load
+  const char *want = LV[menu && !resumable ? 0 : lvl].music;
   if (st == DEAD) dead = 1;
-  if (want != theme) { snd_theme(theme = want, 1); seen = loads; dead = 0; }
+  if (strcmp(want, theme)) { snprintf(theme, sizeof theme, "%s", want); snd_theme(theme, 1); seen = loads; dead = 0; }
   else if (loads != seen && !menu) { snd_theme(theme, 1); seen = loads; if (dead) quiet = 80; dead = 0; }
   if (quiet) quiet--;   // after a death the theme waits for the death jingle
   // stems
@@ -1161,10 +1275,9 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--dump") && i+1 < argc) dump = argv[++i], silent = 1;
     else { fprintf(stderr, "usage: %s [--silent] [--dump out.wav]\n", argv[0]); return 2; }
   }
-  char dir[1024] = ".";
-  ssize_t n = readlink("/proc/self/exe", dir, sizeof dir - 16);
-  if (n > 0) { dir[n] = 0; char *slash = strrchr(dir, '/'); if (slash) *slash = 0; }
-  strcat(dir, "/assets");
+  char dir[1024];
+  assetdir(dir, sizeof dir);
+  modlevels();
   if (!snd_init(dir, silent, dump)) fprintf(stderr, "hatrick: playing without sound\n");
   Display *d = XOpenDisplay(0);
   if (!d) { fprintf(stderr, "hatrick: cannot open display\n"); return 1; }
@@ -1225,8 +1338,10 @@ int main(int argc, char **argv) {
 #include <stdlib.h>
 #include <string.h>
 int main(int argc, char **argv) {
-  // usage: sim LEVEL TASFILE [trace] [dumpframe out.ppm]
+  // usage: sim LEVEL TASFILE [trace] [dumpframe out.ppm]   (levels: assets/levels.txt next to sim)
+  modlevels();
   lvl = atoi(argv[1]);
+  if (lvl < 0 || lvl >= NLEVEL) { fprintf(stderr, "sim: no level %d (there are %d)\n", lvl, NLEVEL); return 3; }
   load();
   FILE *f = fopen(argv[2], "r");
   int trace = argc > 3 && !strcmp(argv[3], "trace"), dump = argc > 4 ? atoi(argv[4]) : -1, n, frame = 0;

@@ -1,8 +1,18 @@
 # Modding Hatrick
 
+Everything you can mod lives in `assets/` next to the game:
+
+| Path | What |
+|---|---|
+| `levels.txt` | every level, its name, music and menu card |
+| `sfx/` | sound effects |
+| `music/` | jingles, and one folder per music theme |
+
+The game reads these files when it starts, so there is no rebuild: edit, then restart the game. Mistakes never stop the game. A broken level, an unknown option or a missing sound is reported on the terminal with the file and line, and the rest still works. Run `./hatrick` from a terminal to see these reports.
+
 ## Sounds and music
 
-The game reads every sound from `assets/` next to the binary when it starts. Music is read each time a theme starts. To replace a sound, drop in a file with the same name. No rebuild is needed; just restart the game.
+To replace a sound, drop in a file with the same name. Music is read each time a theme starts.
 
 - Formats: `.ogg`, `.wav`, `.flac` or `.mp3`, with any sample rate, mono or stereo. If several formats exist for one name, the game uses the first in that order. So to replace `jump.ogg` with `jump.wav`, delete or rename the OGG.
 - A missing or unreadable file is reported on the terminal and stays silent. The game keeps running.
@@ -38,7 +48,7 @@ Sounds play once at full length, overlapping freely (up to 32 at a time). Sounds
 
 ### Music: `assets/music/<theme>/`
 
-Each level uses one theme folder:
+Each level picks its theme folder with `music=` in `levels.txt` (see below). The title menu plays a calm mix of the first level's theme. The stock themes are:
 
 | Theme folder | Used by |
 |---|---|
@@ -46,6 +56,8 @@ Each level uses one theme folder:
 | `underground` | Brickworks |
 | `athletic` | Spikes, Sky, the movement playground |
 | `finale` | Hatrick |
+
+To add a new song, make a new folder, e.g. `assets/music/mysong/`, put the stems in it, and set `music=mysong` on the levels that should use it.
 
 A theme is up to seven stems that loop together, all starting at the same moment:
 
@@ -70,11 +82,28 @@ bah 7.5 15.5 23.5 28
 
 `bah` lists the beats, counted from 0 at the start of the loop, where the enemies hop. Without the file, or without a `bah` line, the music plays normally and the enemies don't hop.
 
-## Levels: `levels.txt`
+## Levels: `assets/levels.txt`
 
-Levels are ASCII maps that are built into the game, so run `./build.sh` after editing (it takes a second). Each level begins with a line like `= 1 hills`; the name after the number appears on the destination menu. A level named `lab ...` is a test map rather than a campaign level. Lines starting with `;` are comments.
+Levels are ASCII maps. Each one starts with a header line, followed by its rows:
 
-A level is at most 32 rows tall and 256 columns wide; rows sit at the bottom of the 32-row map. Legend:
+```
+= 2 brickworks   music=underground   card=bricks
+; lines starting with ; are comments
+            o o o
+@      BBB         g        F
+############################
+```
+
+**Header:** `=`, then the level's name. A leading number is just for your own ordering; it isn't shown. The name appears on the destination menu in capitals (letters, digits and `- / : . ?`). Options:
+
+| Option | Meaning | Default |
+|---|---|---|
+| `music=<folder>` | theme folder in `assets/music/` | `overworld` |
+| `card=<style>` | menu card picture: `hills`, `bricks`, `spikes`, `sky`, `castle` or `playground` | `hills` |
+
+**Order:** campaign levels are played in file order, and you can have as many as you like (the menu pages through them six at a time). Finishing the last one ends the run. Levels whose name starts with `lab` are not part of the campaign. The last `lab` level is the movement playground (F1, and the last card on the menu). Without any lab level there is no playground.
+
+**Size:** a level is at most 32 rows tall and 256 columns wide, with at most 48 enemies. Rows sit at the bottom of the 32-row map, so a short level is just floor and sky. Empty lines inside a map count as rows. Every level needs exactly one `@` and one `F`.
 
 | Char | Tile | Char | Tile |
 |---|---|---|---|
@@ -84,5 +113,8 @@ A level is at most 32 rows tall and 256 columns wide; rows sit at the bottom of 
 | `^` | spikes | `o` | coin |
 | `/` `\` | slopes | `g` | walker enemy |
 | `b` | buzzer, flies up and down | `h` | buzzer, flies left and right |
+| space | empty | | |
 
-The music theme for each level slot is set in `themeof()` in `hatrick.c`. Levels past the fifth use `athletic`.
+To test a level without playing it, `./sim LEVEL file.tas` replays scripted input on it (levels are numbered from 0, campaign first, then labs). `python3 view.py LEVEL file.tas out.png` draws the level with the replay's path.
+
+`./build.sh` also builds a copy of `assets/levels.txt` into the game, which is used only when the file is missing or has no playable level.

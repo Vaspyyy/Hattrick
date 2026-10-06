@@ -9,7 +9,7 @@ int snd_init(const char *dir, int silent, const char *dump);
 void snd_quit(void);
 
 void snd_play(int sound, float pan);          // pan -1 (left) .. 1 (right)
-void snd_theme(int theme, int restart);       // switch theme, or restart it from beat 0
+void snd_theme(const char *theme, int restart);   // switch to assets/music/<theme>/, or restart it
 void snd_stem(int stem, float gain, int ms);  // fade a music stem toward gain over ms
 void snd_volume(float master, int muted);     // master 0..1, smoothly applied
 double snd_bah(double ahead);                  // seconds since the music's last "bah" (at playhead + ahead
