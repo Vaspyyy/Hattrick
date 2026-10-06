@@ -187,6 +187,18 @@ def bonus():   # the tally is done: two bell notes and a sparkle
     return fadeout(mix((0, sample("glock", 91, 0.8, 0.5), 0.7), (0.09, sample("glock", 96, 0.8, 0.6), 0.75),
                        (0.09, sample("marimba", 72, 0.8, 0.3), 0.5), (0.12, sample("triangle", 0, 0.5), 0.3)), 0.2)
 
+def hurry():   # 100 s left: a quick rising run, twice, with a cowbell on each
+    parts = []
+    for k in range(2):
+        parts += [(k * 0.36 + i * 0.07, sample("xylo", p, 0.85, 0.15), 0.8) for i, p in enumerate((76, 79, 83, 88))]
+        parts.append((k * 0.36, sample("cowbell", 0, 0.7), 0.4))
+    return fadeout(mix(*parts), 0.1)
+
+def moon():   # a moon coin: a slow shimmering climb on bells, a low marimba bloom and a bell tree
+    notes = [(i * 0.075, sample("glock", p, 0.8, 0.9), 0.7) for i, p in enumerate((79, 84, 88, 91, 96, 100))]
+    return fadeout(mix(*notes, (0, sample("marimba", 48, 0.9, 0.8), 0.6), (0, sample("marimba", 55, 0.8, 0.8), 0.45),
+                       (0.2, sample("belltree", 0, 0.7), 0.5), (0.42, sample("triangle", 0, 0.5), 0.3)), 0.4)
+
 # name -> (function, loudness relative to the others)
 SFX = {"coin": (coin, 0.55), "jump": (jump, 0.6), "jump2": (lambda: jump(1), 0.62), "jump3": (lambda: jump(2), 0.65),
        "stomp": (stomp, 0.8), "cap_throw": (cap_throw, 0.5), "cap_catch": (cap_catch, 0.5), "cap_bounce": (cap_bounce, 0.6),
@@ -195,7 +207,7 @@ SFX = {"coin": (coin, 0.55), "jump": (jump, 0.6), "jump2": (lambda: jump(1), 0.6
        "roll": (roll, 0.5), "spin": (spin, 0.45), "longjump": (longjump, 0.6), "flip": (flip, 0.62), "ledge": (ledge, 0.4),
        "menu_move": (menu_move, 0.4), "menu_ok": (menu_ok, 0.5), "menu_back": (menu_back, 0.45), "pause": (pause, 0.45),
        "checkpoint": (checkpoint, 0.55), "tube": (tube, 0.55), "crumble": (crumble, 0.4), "reveal": (reveal, 0.6),
-       "spit": (spit, 0.45), "emerge": (emerge, 0.3), "tick": (tick, 0.3), "bonus": (bonus, 0.5)}
+       "spit": (spit, 0.45), "emerge": (emerge, 0.3), "tick": (tick, 0.3), "bonus": (bonus, 0.5), "hurry": (hurry, 0.55), "moon": (moon, 0.65)}
 
 def build_all(outdir, only=None):
     out = {}

@@ -1,4 +1,4 @@
-= 1 hills          music=overworld   card=hills   par=40
+= 1 hills          music=overworld   card=hills
 
 
 
@@ -42,7 +42,7 @@ S 11          SSSSSSS      22  S
 S ||                       ||  S
 SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
-= 2 brickworks     music=underground card=bricks  par=75
+= 2 brickworks     music=underground card=bricks
 
 
 
@@ -87,7 +87,7 @@ S||                          ||S
 SSS^^^^^^^^^^^^^^^^^^^^^^^^^^SSS
 SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
-= 3 spikes         music=athletic    card=spikes  par=80
+= 3 spikes         music=athletic    card=spikes
 
 
 
@@ -128,7 +128,7 @@ SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
  11                         22
 SSSS   CC    CC    CC    CCSSSSS
 
-= 4 sky            music=athletic    card=sky     par=80
+= 4 sky            music=athletic    card=sky
 
 
 
@@ -169,7 +169,7 @@ SSSS   CC    CC    CC    CCSSSSS
  11                         22
 SSSS    CCC     CCC     CCCSSSS
 
-= 5 hatrick        music=finale      card=castle  par=150
+= 5 hatrick        music=finale      card=castle
                        ^^^^^
                        SSSSS
                        SSSSS

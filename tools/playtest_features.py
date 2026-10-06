@@ -31,10 +31,10 @@ L1 = [
     '####################||#######  #####||#########################',
     '####################||##############||#########################',
 ]
-LEVELS = ("= 1 playtest par=60\n" + "\n".join(L1) + "\n"
+LEVELS = ("= 1 playtest\n" + "\n".join(L1) + "\n"
           "+ test room\nSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\nS                              S\nS  o o o o o o o o o o o o     S\n"
           "S                              S\nS                              S\nSS22SSSSSSSSSSSSSSSSSSSSSSS33SSS\nSS||SSSSSSSSSSSSSSSSSSSSSSS||SSS\n"
-          "= 2 second par=30\n\n @         F\n############\n"
+          "= 2 second\n\n @         F\n############\n"
           "= lab play card=playground\n @     F\n#########\n")
 
 def main():
@@ -43,12 +43,13 @@ def main():
         source = (REPO / 'hatrick.c').read_text()
         for name in ('gfx.h', 'levels.h', 'sound.h', 'audio.h'):
             source = source.replace(f'#include "{name}"', f'#include "{REPO / name}"')
+        source = source.replace('#include "vendor/stb_image.h"', f'#include "{REPO / "vendor" / "stb_image.h"}"')
         source = source.replace('(active ? padkeys() : 0)', '0')   # never read (or rumble) the user's gamepad
         assert '    render();\n    XPutImage' in source
         source = source.replace('    render();\n    XPutImage', TRACE + '    render();\n    XPutImage')
         (base / 'game.c').write_text(source)
         binary = base / 'game'
-        subprocess.run(['gcc', '-O2', '-w', str(base / 'game.c'), str(REPO / 'audio.o'), str(REPO / 'vendor' / 'miniaudio.o'),
+        subprocess.run(['gcc', '-O2', '-w', str(base / 'game.c'), str(REPO / 'audio.o'), str(REPO / 'vendor' / 'miniaudio.o'), str(REPO / 'vendor' / 'stb_image.o'),
                         '-o', str(binary), '-lX11', '-lm', '-lpthread', '-ldl'], check=True)
         (base / 'assets').mkdir()
         for d in ('sfx', 'music', 'licenses'): (base / 'assets' / d).symlink_to(REPO / 'assets' / d)

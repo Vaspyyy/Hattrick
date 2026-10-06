@@ -152,7 +152,7 @@ int main(void) {
   CHECK(parse("= 1 x\n@  n   F\n#######\n") && strstr(err, "tube dweller 'n' in column 4 must sit"));
 
   // ---- the course clear: height bonus, the flag slides, a pose, the time bonus ticks in, next level
-  use("= 1 one par=20\n"
+  use("= 1 one\n"
       "             F\n"
       "\n"
       "\n"
@@ -161,13 +161,13 @@ int main(void) {
       "= 2 two\n"
       "@     F\n"
       "#######\n");
-  tim = 600; lstart = 0; place(13*8-3, 27*8-12); hvx = 300; run(2, 1);
-  CHECK(st == WIN && score == 5000 && split == 601 && tally == 9);    // grabbed at the very top; 9 s under par
+  tim = 600; lstart = 0; left = LIMIT - 601; place(13*8-3, 27*8-12); hvx = 300; run(2, 1);
+  CHECK(st == WIN && score == 5000 && split == 601 && tally == 489 && left == LIMIT - 601);   // the very top; 489 s left
   int ticks = 0, f0 = flagy;
   for (int i = 0; i < 400 && lvl == 0; i++) { tick(0); ticks += nsnd && sndq[0] == S_TICK; nsnd = 0; }
-  CHECK(lvl == 1 && st == NORM && score == 5450 && lscore == 5450 && lstart > 600 && ticks >= 5 && f0 < gb);
+  CHECK(lvl == 1 && st == NORM && score == 5000 + 489*50 && lscore == score && lstart > 600 && ticks >= 5 && f0 < gb && left == LIMIT - 1);   // the new level's timer, one frame in
   // low on the pole, and skipped with Jump
-  use("= 1 one par=20\n"
+  use("= 1 one\n"
       "             F\n"
       "\n"
       "\n"
@@ -177,14 +177,60 @@ int main(void) {
       "@     F\n"
       "#######\n");
   place(13*8-3, 31*8-12); hvx = 300; run(2, 1);
-  CHECK(st == WIN && score == 100 && tally == 19);
+  CHECK(st == WIN && score == 100 && tally == 500);
   run(0, 8); run(16, 1);
-  CHECK(lvl == 1 && st == NORM && score == 100 + 19*50 && skipclear);
+  CHECK(lvl == 1 && st == NORM && score == 100 + 500*50 && skipclear);
   // the last level ends the run
   for (int i = 0; i < 200 && st != WIN; i++) tick(2);
   CHECK(st == WIN);
   for (int i = 0; i < 400 && !done; i++) tick(0);
   CHECK(done);
+
+  // ---- the 500 s level timer: counts down in play, hurries at 100 s, a death at 0
+  use("= 1 clock\n"
+      "@    K       F\n"
+      "##############\n");
+  CHECK(left == LIMIT); run(0, 60); CHECK(left == LIMIT - 60);
+  menu = 1; run(0, 30); menu = 0; CHECK(left == LIMIT - 60);          // paused: stopped
+  nsnd = 0; left = 100*60 + 1; tick(0);
+  { int hurry = 0; for (int i = 0; i < nsnd; i++) hurry |= sndq[i] == S_HURRY; CHECK(hurry); } nsnd = 0;
+  left = 1; tick(0); CHECK(st == DEAD && timeout && deaths == 1);
+  run(0, 62); CHECK(st == NORM && left >= LIMIT - 2 && !timeout);    // from the top, with a full timer
+  for (int i = 0; i < 100 && !haveck; i++) tick(2);
+  CHECK(haveck);
+  left = 9000; die(); run(0, 62); CHECK(st == NORM && left > 9000 - 70 && left < 9000);   // a checkpoint keeps the time left
+  left = 1; tick(0); CHECK(st == DEAD && timeout);
+  run(0, 62); CHECK(st == NORM && X() == 5*8+1 && left >= LIMIT - 2);  // ...unless it ran out
+  CHECK(parse("= 1 old par=90\n@ F\n###\n") && strstr(err, "par= is no longer used"));
+
+  // ---- moon coins: three secret ones per level, kept once they reach the flag, saved by level name
+  char mpath[] = "/tmp/hatrick-moons-XXXXXX"; close(mkstemp(mpath)); setenv("HATRICK_MOONS", mpath, 1);
+  moonload(); CHECK(nmoons == 0);
+  use("= 1 moony\n"
+      "@ (   K  (      F\n"
+      "################\n"
+      "+ den\n"
+      "  (\n"
+      "  11\n"
+      "#####\n");
+  CHECK(LV[0].nmoon == 3 && LV[0].moon[2].room == 1 && LV[0].moon[0].x == 2 && LV[0].moon[1].x == 9 && !map[30][2]);
+  for (int i = 0; i < 60 && !wd.moongot; i++) tick(2);
+  CHECK(wd.moongot == 1 && score == 2000);
+  die(); run(0, 62); CHECK(!wd.moongot && score == 0);                 // lost: no checkpoint yet
+  for (int i = 0; i < 100 && !haveck; i++) tick(2);
+  CHECK(haveck && wd.moongot == 1);
+  for (int i = 0; i < 100 && wd.moongot != 3; i++) tick(2);
+  CHECK(wd.moongot == 3);
+  die(); run(0, 62); CHECK(wd.moongot == 1);                           // the checkpoint kept the first
+  for (int i = 0; i < 200 && st != WIN; i++) tick(2);
+  CHECK(st == WIN && moonbits(0) == 3);                                // the two from this visit count
+  nmoons = 0; moonload(); CHECK(nmoons == 1 && moonbits(0) == 3 && !strcmp(moons[0].name, "MOONY"));
+  load(); render(); CHECK(!wd.moongot);                                // drawn as outlines now
+  for (int i = 0; i < 60 && !wd.moongot; i++) tick(2);
+  CHECK(wd.moongot == 1 && score == 2000);                             // and can be picked up again
+  menu = 1; render(); menu = 0;
+  CHECK(parse("= 1 greedy\n@ ((((  F\n#########\n") && LV[0].nmoon == 3 && strstr(err, "more than 3 moon coins"));
+  unlink(mpath);
 
   // ---- points: coins, stomps and bricks
   use("= 1 pts\n"

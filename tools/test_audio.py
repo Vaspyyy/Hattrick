@@ -14,12 +14,13 @@ with tempfile.TemporaryDirectory(prefix='hatrick-audio-test-') as tmp:
     source = (REPO / 'hatrick.c').read_text()
     for name in ('gfx.h', 'levels.h', 'sound.h', 'audio.h'):
         source = source.replace(f'#include "{name}"', f'#include "{REPO / name}"')
+    source = source.replace('#include "vendor/stb_image.h"', f'#include "{REPO / "vendor" / "stb_image.h"}"')
     source = source.replace('(active ? padkeys() : 0)', '0')   # never read (or rumble) the user's gamepad
     source = source.replace('static void die(void) { if (st < TUBE)', 'static void die(void) { if (0)')   # the scripted run must not die on the level's hazards
     assert 'if (0)' in source
     (base / 'audio-test.c').write_text(source)
     binary = base / 'audio-test'
-    subprocess.run(['gcc', '-O2', '-w', str(base / 'audio-test.c'), str(REPO / 'audio.o'), str(REPO / 'vendor' / 'miniaudio.o'),
+    subprocess.run(['gcc', '-O2', '-w', str(base / 'audio-test.c'), str(REPO / 'audio.o'), str(REPO / 'vendor' / 'miniaudio.o'), str(REPO / 'vendor' / 'stb_image.o'),
                     '-o', str(binary), '-lX11', '-lm', '-lpthread', '-ldl'], check=True)
     (base / 'assets').symlink_to(REPO / 'assets')
     readfd, writefd = os.pipe()

@@ -4,13 +4,14 @@ Everything you can mod lives in `assets/` next to the game:
 
 | Path | What |
 |---|---|
-| `levels.txt` | every level and bonus room, its name, music, menu card and par time |
+| `levels.txt` | every level and bonus room, its name, music and menu card |
 | `sfx/` | sound effects |
 | `music/` | jingles, and one folder per music theme |
+| `gfx/` | replacement art: tiles, Hatrick, enemies, backgrounds (PNG) |
 
 The game reads these files when it starts, so there is no rebuild: edit, then restart the game. Mistakes never stop the game. A broken level, an unknown option or a missing sound is reported on the terminal with the file and line, and the rest still works. Run `./hatrick` from a terminal to see these reports, or `./sim --check` to check `levels.txt` alone.
 
-The high-score table is saved separately, in `~/.hatrick_scores`.
+The high-score table and the moon coins found are saved separately, in `~/.hatrick_scores` and `~/.hatrick_moons`.
 
 ## Sounds and music
 
@@ -47,6 +48,8 @@ To replace a sound, drop in a file with the same name. Music is read each time a
 | `reveal` | finding a hidden block, or a bonus room for the first time |
 | `emerge`, `spit` | a tube dweller coming out nearby; a spitter lobbing a seed |
 | `tick`, `bonus` | each step of the course-clear score tally; the end of the tally |
+| `hurry` | 100 seconds left on the level timer |
+| `moon` | picking up a moon coin |
 
 Sounds play once at full length, overlapping freely (up to 32 at a time). Sounds are panned slightly toward where Hatrick is on screen.
 
@@ -90,12 +93,64 @@ bah 7.5 15.5 23.5 28
 
 `bah` lists the beats, counted from 0 at the start of the loop, where the enemies hop. Without the file, or without a `bah` line, the music plays normally and the enemies don't hop.
 
+## Graphics: `assets/gfx/`
+
+The art is built into the game, and any part of it can be replaced by a PNG in `assets/gfx/`. A file that isn't there keeps the built-in art, so a texture pack can be as small as one file. Start from the real thing:
+
+```
+python3 tools/export_gfx.py
+```
+
+writes every file below with today's art to `gfx-template/` (after `./build.sh`). Copy the ones you change into `assets/gfx/` and restart the game.
+
+- PNG, any colour, with transparency: a pixel is drawn if its alpha is at least 128, and is fully transparent below that. There's no blending.
+- Sizes are fixed (except the backgrounds), because collisions don't change with the art. A file of the wrong size is reported on the terminal and the built-in art is used.
+- 1 pixel is one game pixel (the window shows each one 4x4).
+
+| File | Size | What |
+|---|---|---|
+| `tiles.png` | 64x32 | every map tile: eight 8x8 cells per row, in the order below |
+| `hatrick.png` | 80x12 or 80x24 | Hatrick: ten 8x12 frames side by side; an optional second row is the same frames while his cap is thrown |
+| `walker.png` | 16x8 | the walker enemy (`g`): two 8x8 walking frames |
+| `buzzer.png` | 16x8 | the buzzers (`b` `h`): two wing frames |
+| `dweller.png` | 32x16 | tube dwellers: snapper open, snapper shut, spitter open, spitter shut (8x16 each, head up) |
+| `cap.png` | 8x4 | the thrown cap |
+| `moon.png` | 13x13 | a moon coin; one already brought home is drawn from every other pixel, pale |
+| `sky.png` | any | the background of levels and `bg=sky` rooms: scrolls sideways at a quarter of the camera speed, repeating, stretched to the screen's height |
+| `cave.png` | any | the background of `bg=cave` rooms, the same way |
+
+**`tiles.png` cells**, left to right, top to bottom (row 1 is cells 0–7):
+
+| Cells | Tile |
+|---|---|
+| 0, 1 | ground (`#`): with nothing above it (grass), and with ground above |
+| 2 | brick (`B`) |
+| 3, 4 | spikes (`^`): pointing up, and hanging from a ceiling |
+| 5 | stone (`S`) |
+| 6 | spring (`T`) |
+| 7, 8 | slopes `/` and `\` |
+| 9 | a found hidden block |
+| 10 | crumble block (`C`) |
+| 11 | fire bar pivot (`*` `%`) |
+| 12–15 | coin (`o`): four frames of its spin |
+| 16, 17 | upright tube body (`\|`): left half, right half |
+| 18, 19 | sideways tube body (`-`): top half, bottom half |
+| 20–27 | tube mouths, in pairs (two cells of one mouth): opening up (left, right), opening down (left, right), opening left (top, bottom), opening right (top, bottom) |
+| 28 | one ember of a fire bar, drawn centred on it |
+| 29 | a spitter's seed, drawn centred on it |
+
+Cells 30 and 31 are unused. Each tile cell is drawn at the same spot whatever its neighbours: the built-in art's speckles and tube bands that vary along a run of tiles become one fixed pattern.
+
+**`hatrick.png` frames**, left to right: standing, running (2 frames), jumping and falling, throwing, hanging from a ledge, crouching, spinning, the course-clear pose, rolling. The rolling frame is 8x8, sitting at the bottom of its 8x12 cell; the other frames face right and stand on the bottom row (the game mirrors them for left).
+
+The menu, the HUD, the flag, checkpoints and particles are still drawn by the game itself.
+
 ## Levels: `assets/levels.txt`
 
 Levels are ASCII maps. Each one starts with a header line, followed by its rows, and may have up to three bonus rooms after it:
 
 ```
-= 2 brickworks   music=underground   card=bricks   par=75
+= 2 brickworks   music=underground   card=bricks
 ; lines starting with ; are comments
             o o o
 @      BBB         g   11   K   F
@@ -113,13 +168,12 @@ Levels are ASCII maps. Each one starts with a header line, followed by its rows,
 |---|---|---|
 | `music=<folder>` | theme folder in `assets/music/` | `overworld` |
 | `card=<style>` | menu card picture: `hills`, `bricks`, `spikes`, `sky`, `castle` or `playground` | `hills` |
-| `par=<seconds>` | par time: every whole second under it is worth 50 points at the flag | `100` |
 
 **Bonus rooms:** a line starting with `+` begins a bonus room of the level above it, with its own map (same size rules). The rest of the line is a name for your own use, plus an optional `bg=cave` (the default: a dim cave) or `bg=sky`. Rooms are only reachable through tubes. The start and the flag belong in the level's main area. The first time Hatrick enters a bonus room is worth 2000 points.
 
 **Order:** campaign levels are played in file order, and you can have as many as you like (the menu pages through them six at a time). Finishing the last one ends the run. Levels whose name starts with `lab` are not part of the campaign. The last `lab` level is the movement playground (F1, and its card on the menu). Without any lab level there is no playground. The last card on the menu is always the high-score table.
 
-**Size:** an area is at most 32 rows tall and 256 columns wide. Rows sit at the bottom of the 32-row map, so a short level is just floor and sky. Empty lines inside a map count as rows. Every level needs exactly one `@` and one `F`. A level holds at most 48 enemies, 40 tube mouths, 24 fire bars, 24 tube dwellers, 96 crumble blocks and 16 checkpoints.
+**Size:** an area is at most 32 rows tall and 256 columns wide. Rows sit at the bottom of the 32-row map, so a short level is just floor and sky. Empty lines inside a map count as rows. Every level needs exactly one `@` and one `F`. A level holds at most 3 moon coins, 48 enemies, 40 tube mouths, 24 fire bars, 24 tube dwellers, 96 crumble blocks and 16 checkpoints.
 
 | Char | Tile | Char | Tile |
 |---|---|---|---|
@@ -134,6 +188,7 @@ Levels are ASCII maps. Each one starts with a header line, followed by its rows,
 | `0`–`9` | tube mouth, linked by number | `M` | tube mouth that goes nowhere |
 | `*` `%` | fire bar, turning clockwise / anticlockwise | `~` `:` `!` | fire bar arm: normal, slow, fast |
 | `n` | tube dweller (snapper) | `m` | tube dweller that spits seeds |
+| `(` | moon coin (secret, at most 3 per level) | | |
 | space | empty | | |
 
 **Checkpoints (`K`):** put it in the empty cell standing on the ground. Touching it raises its banner and saves the level as it is at that moment: coins, score, broken bricks, beaten enemies. A death comes back there instead of the start; R still restarts the whole level. The run timer never stops, and the level's time at the flag is measured from the level's start.
@@ -161,7 +216,11 @@ Hatrick goes in by pressing Down on top of a mouth that opens up, by walking int
 
 **Tube dwellers (`n` `m`):** put one right above a mouth that opens up (or right below one that opens down), over either of its two cells. It hides, rises out, snaps, and sinks back on a timer, but stays in while Hatrick is right next to or on its tube. Touching one is fatal, stomping included. Only the cap beats it (500 points). The `m` kind also lobs slow arcing seeds at Hatrick; the cap knocks those out of the air too. Usually you'll give dwellers an `M` mouth, but they can live in linked tubes as well: they stay in while Hatrick travels through.
 
-**Points:** coin 100, stomp or cap knockout 200, brick 50, hidden block 1100, tube dweller 500, a bonus room found 2000. At the flag, the height where Hatrick grabs the pole is worth 100 to 5000 (the very top), then every second under par adds 50. A death takes the score back to the level's start, or to the last checkpoint.
+**Moon coins (`(`):** each level can hide up to three, in its main area or its bonus rooms. They're the game's secrets, so put them somewhere that takes exploring or skill to reach: behind a tube, above a hidden-block staircase, at the end of a hard detour. Picking one up is worth 2000 points, but it only counts once Hatrick reaches the flag; a death before the next checkpoint loses it again. Coins brought home are saved in `~/.hatrick_moons` by level name ("`<bits> <LEVEL NAME>`" per line, bit 1 for the level's first moon coin in reading order, 2 for the second, 4 for the third). They show on the level's menu card, and as faint outlines in the level (they can still be picked up for points). Renaming a level forgets its moon coins.
+
+**Timer:** every level has 500 seconds, shown in the HUD; it turns red with a warning sound at 100 and running out is a death. It starts over with the level (and with R); a checkpoint keeps the time that was left, unless it ran out.
+
+**Points:** coin 100, stomp or cap knockout 200, brick 50, hidden block 1100, tube dweller 500, a bonus room found 2000. At the flag, the height where Hatrick grabs the pole is worth 100 to 5000 (the very top), then every second left on the timer adds 50. A death takes the score back to the level's start, or to the last checkpoint.
 
 To test a level without playing it, `./sim LEVEL file.tas` replays scripted input on it (levels are numbered from 0, campaign first, then labs). Add `trace` to see every frame (position, state, room and score), and set `SIM_RESPAWN=1` to keep going after deaths. `python3 tools/route.py LEVEL out.tas` searches for a route to the flag and writes it as a replay. `python3 view.py LEVEL file.tas out.png [room=N]` draws a level, or one of its bonus rooms, with the replay's path.
 

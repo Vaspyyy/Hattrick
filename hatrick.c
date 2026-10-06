@@ -111,12 +111,13 @@ typedef struct { int room, x, y, len, speed, a0; } Bar;    // fire bar pivot cel
 typedef struct { int room, tube, spit; } Home;             // a tube dweller and the mouth it lives in
 typedef struct { int w, cave; u8 grid[MH][MW]; } Room;
 typedef struct {
-  char name[40], music[64]; int card, lab, par, nroom, ntube, nbar, nhome;
+  char name[40], music[64]; int card, lab, nroom, ntube, nbar, nhome, nmoon;
   Room room[NROOM]; Tube tube[40]; Bar bar[24]; Home home[24];
+  struct { int room, x, y; } moon[3];   // its secret moon coins, in reading order (main area, then rooms)
 } Level;
 static Level *LV;
 static int NLV, NLEVEL, PLAY = -1;   // campaign levels, all levels, playground index (-1: none)
-static const char KNOWN[] = "#B^STo/\\|-M?C*%~:!0123456789@FKgbhnm";   // every map character but space
+static const char KNOWN[] = "#B^STo/\\|-M?C*%~:!0123456789@FKgbhnm(";   // every map character but space
 
 // What a map character becomes in the live map: 1 ground, 2 brick, 3 spikes, 4 stone, 5 spring,
 // 6 coin, 8/9 slopes, 10/11 tube body (vertical / horizontal), 12 tube mouth, 13 crumble block,
@@ -135,7 +136,7 @@ static void levelerr(const char *file, int line, const char *fmt, ...) {
   fprintf(stderr, "hatrick: %s:%d: ", file, line); vfprintf(stderr, fmt, ap); fputc('\n', stderr);
   va_end(ap);
 }
-// Reads a level header "= 1 hills music=overworld card=hills par=90" or a room header "+ cellar bg=sky".
+// Reads a level header "= 1 hills music=overworld card=hills" or a room header "+ cellar bg=sky".
 static void parseheader(Level *L, Room *R, char *h, const char *file, int line) {
   char name[40] = "", *w, *ws = 0;
   for (w = strtok_r(h, " \t", &ws); w; w = strtok_r(0, " \t", &ws)) {
@@ -146,11 +147,11 @@ static void parseheader(Level *L, Room *R, char *h, const char *file, int line) 
       if (!strcmp(w, "bg") && (!strcmp(eq, "cave") || !strcmp(eq, "sky"))) R->cave = !strcmp(eq, "cave");
       else levelerr(file, line, "unknown room option \"%s=%s\" (use bg=cave or bg=sky)", w, eq);
     } else if (!strcmp(w, "music")) snprintf(L->music, sizeof L->music, "%s", eq);
-    else if (!strcmp(w, "par")) { L->par = atoi(eq); if (L->par < 1) levelerr(file, line, "par needs a number of seconds"), L->par = 100; }
+    else if (!strcmp(w, "par")) levelerr(file, line, "par= is no longer used: every level has a 500 s timer");
     else if (!strcmp(w, "card")) {
       int c = 0; while (c < NCARD && strcmp(eq, CARDNAME[c])) c++;
       if (c < NCARD) L->card = c; else levelerr(file, line, "unknown card \"%s\" (use hills, bricks, spikes, sky, castle or playground)", eq);
-    } else levelerr(file, line, "unknown option \"%s\" (use music=, card= or par=)", w);
+    } else levelerr(file, line, "unknown option \"%s\" (use music= or card=)", w);
   }
   if (R) return;
   L->lab = !strncmp(name, "lab", 3);
@@ -236,7 +237,7 @@ static int parselevels(const char *text, const char *file) {
     if (ln[h][0] != '=') continue;
     out = realloc(out, (n+1) * sizeof *out);
     Level *L = out + n;
-    memset(L, 0, sizeof *L); strcpy(L->music, "overworld"); L->par = 100;
+    memset(L, 0, sizeof *L); strcpy(L->music, "overworld");
     parseheader(L, 0, ln[h]+1, file, h+1);
     int end = h+1; while (end < nl && ln[end][0] != '=') end++;
     int ok = 1, lines[NROOM][MH];
@@ -271,6 +272,11 @@ static int parselevels(const char *text, const char *file) {
         else if (a >= 0) levelerr(file, h+1, "level \"%s\": tube %d has no partner (give a second tube mouth the same digit); it can't be entered", L->name, id);
         if (more) levelerr(file, h+1, "level \"%s\": more than two tube mouths are numbered %d; only the first two are linked", L->name, id);
       }
+      for (int r = 0; r < L->nroom; r++) for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++)
+        if (L->room[r].grid[y][x] == '(') {
+          if (L->nmoon < 3) L->moon[L->nmoon].room = r, L->moon[L->nmoon].x = x, L->moon[L->nmoon++].y = y;
+          else levelerr(file, h+1, "level \"%s\" has more than 3 moon coins; the rest are ignored", L->name), L->room[r].grid[y][x] = 0;
+        }
       int nck = 0, ncr = 0;
       for (int r = 0; r < L->nroom; r++) for (int y = 0; y < MH; y++) for (int x = 0; x < MW; x++)
         nck += L->room[r].grid[y][x] == 'K', ncr += L->room[r].grid[y][x] == 'C';
@@ -314,12 +320,15 @@ static struct World {
   Shot sh[8];
   Check ck[16]; int nck;
   int found;      // bonus rooms already visited (bit per room), for the find bonus
+  int moongot;    // moon coins picked up on this visit (bit per coin); kept once the flag is reached
 } wd, saved;
 #define map (wd.rm[room])
 #define en (wd.en)
 #define ne (wd.ne)
 static int room, startx, starty, haveck, ckroom, ckx, cky;
 static int score, lscore, savedcoins, savedscore, lstart, split;   // split: frames the finished level took
+#define LIMIT (500*60)    // every level's timer: 500 s; out of time is a death
+static int left, timeout;  // frames left on it; the last death was the timer running out
 static int tubefrom, tubeto, tubelock, ride, wphase, wt, tally, flagy, skipclear, donet;
 // Presentation of scoring and finds (never read by the game logic).
 typedef struct { int x, y, v, t; } Pop;   // a score number (v > 0) or a popped coin (v = 0) rising from x, y (px)
@@ -457,13 +466,14 @@ static void spawn(int r, int x, int y) {
   cxf = hx - (W/2 - 3 << 8); cyf = hy - (H*5/8 << 8); look = 0; camgy = hy; sqv = turnt = vang = pgnd = pvy = rollph = 0;
 }
 static void load(void) {   // (re)start the level from the top
-  build(); haveck = 0;
+  build(); haveck = 0; left = LIMIT; timeout = 0;
   spawn(0, startx << 11, (starty-1) << 11);
   coins = lcoins; score = lscore;
 }
 static void respawn(void) {   // after a death: from the last checkpoint touched, else from the top
   if (!haveck) { load(); return; }
   wd = saved; coins = savedcoins; score = savedscore;
+  if (timeout) left = LIMIT, timeout = 0;   // the time left carries over, unless it ran out
   spawn(ckroom, ckx, cky);
 }
 
@@ -527,7 +537,7 @@ static int tubecheck(int k, int dir, int X, int Y, int vy0) {   // enter a tube 
 }
 
 // ---------- the course clear ----------
-// Hatrick slides down the pole with the flag, poses, the time left under par is counted into the
+// Hatrick slides down the pole with the flag, poses, the time left on the timer is counted into the
 // score, then the next level. A new jump press skips straight to the end of all of it.
 static void nextlevel(void) {
   if (lvl >= NLV) load();
@@ -556,11 +566,55 @@ static void win(int pr) {
     }
   } else if (wphase == 3 && ++wt == 45) nextlevel();
 }
+// ---------- moon coins: which ones were ever brought to a flag, by level name, in ~/.hatrick_moons ----------
+// Lines "<bits> <LEVEL NAME>" (bit i = the level's i-th moon coin). HATRICK_MOONS names another
+// file; the simulator and tests only ever use that.
+static struct { char name[40]; int bits; } moons[64];
+static int nmoons;
+static const char *savepath(const char *env, const char *file) {
+  static char p[1100];
+  const char *e = getenv(env), *home = getenv("HOME");
+  if (e && *e) return e;
+#ifdef SIM
+  return 0;
+#endif
+  if (!home) return 0;
+  snprintf(p, sizeof p, "%s/%s", home, file);
+  return p;
+}
+static void moonload(void) {
+  const char *p = savepath("HATRICK_MOONS", ".hatrick_moons"); FILE *f = p ? fopen(p, "r") : 0;
+  char line[128];
+  nmoons = 0;
+  while (f && nmoons < 64 && fgets(line, sizeof line, f)) {
+    char *name; int bits = (int)strtol(line, &name, 10);
+    while (*name == ' ') name++;
+    name[strcspn(name, "\r\n")] = 0;
+    if (*name && bits > 0) snprintf(moons[nmoons].name, sizeof moons[0].name, "%s", name), moons[nmoons++].bits = bits & 7;
+  }
+  if (f) fclose(f);
+}
+static int moonbits(int l) {   // the moon coins of level l already brought home
+  for (int i = 0; i < nmoons; i++) if (!strcmp(moons[i].name, LV[l].name)) return moons[i].bits;
+  return 0;
+}
+static void moonkeep(int l, int bits) {   // adds bits to level l's record and saves the file
+  if (!bits || (moonbits(l) | bits) == moonbits(l)) return;
+  int i = 0; while (i < nmoons && strcmp(moons[i].name, LV[l].name)) i++;
+  if (i == nmoons) { if (nmoons == 64) return; nmoons++; snprintf(moons[i].name, sizeof moons[0].name, "%s", LV[l].name); moons[i].bits = 0; }
+  moons[i].bits |= bits;
+  const char *p = savepath("HATRICK_MOONS", ".hatrick_moons"); FILE *f = p ? fopen(p, "w") : 0;
+  if (!f) { if (p) fprintf(stderr, "hatrick: cannot save the moon coins to %s\n", p); return; }
+  for (int j = 0; j < nmoons; j++) fprintf(f, "%d %s\n", moons[j].bits, moons[j].name);
+  fclose(f);
+}
+
 static void touchflag(int Y) {
   int top = gy*8, h = gb - top, f = h > 0 ? (gb - (Y+11)) * 100 / h : 100;
   st = WIN; stt = 0; hvx = hvy = 0; hx = gx*8-3 << 8; sfx(S_CLEAR); rumble(8);
   split = tim - lstart; wphase = wt = 0; flagy = top+1; skipclear = 0;
-  tally = LV[lvl].par*60 > split ? (LV[lvl].par*60 - split) / 60 : 0;   // whole seconds under par
+  tally = left / 60;   // whole seconds left
+  if (lvl < NLV) moonkeep(lvl, wd.moongot);   // the moon coins count once they reach a flag
   addscore(f >= 90 ? 5000 : f >= 65 ? 2000 : f >= 40 ? 800 : f >= 20 ? 400 : 100, gx*8+8, Y);
 }
 
@@ -927,6 +981,12 @@ static int dwellerhit(const Dweller *d, const Home *h, int x, int y, int w, int 
 static void hazards(void) {
   const Level *L = LV + lvl;
   int X = hx >> 8, Y = (hy >> 8) + duck, hh = 11 - duck, alive = st < TUBE, capon = cst && cst < 3;
+  for (int i = 0; i < L->nmoon; i++)   // moon coins: a 10 px box around each
+    if (L->moon[i].room == room && alive && !(wd.moongot >> i & 1) && ov(X, Y, 6, hh, L->moon[i].x*8-1, L->moon[i].y*8-1, 10, 10)) {
+      wd.moongot |= 1 << i; sfx(S_MOON); rumble(3);
+      burst(L->moon[i].x*8+4, L->moon[i].y*8+4, 0xfff0a0, 10); burst(L->moon[i].x*8+4, L->moon[i].y*8+4, 0xc8d8ff, 8);
+      addscore(2000, L->moon[i].x*8+4, L->moon[i].y*8-4);
+    }
   for (Check *c = wd.ck; c < wd.ck + wd.nck; c++) {
     if (c->up && c->up < 20) c->up++;
     if (c->room == room && alive && !c->up && ov(X, Y, 6, hh, c->x*8+1, c->y*8-8, 6, 16)) {
@@ -1100,6 +1160,10 @@ static void tick(int k) {
   capupd(k);
   enemies(k);
   hazards();
+  if (st < DEAD && !done && left) {   // the level timer
+    if (--left == 100*60) sfx(S_HURRY);
+    if (!left) timeout = 1, die();
+  }
   for (Pop *p = pops; p < pops+12; p++) if (p->t) p->t--;
   if (bumpt) bumpt--;
   for (P *p = pt; p < pt+NP; p++) if (p->l) p->l--, p->x += p->vx, p->y += p->vy, p->vy += p->g;
@@ -1140,10 +1204,36 @@ static int num(int v, int dig, int x, int y, int s, u32 c) {
   for (; d; d /= 10) txt(FONT[v / d % 10], 3, 15, x, y, s, c), x += 4*s;
   return x;
 }
+// ---------- graphics: built in, or replaced by PNGs in assets/gfx/ (see MODDING.md) ----------
+// Pixels are 0xAARRGGBB; an image without pixels means the built-in art. Alpha under 128 is
+// transparent; opaque pure black is stored as 0x010101 because 0 means "nothing" to the drawing.
+typedef struct { int w, h; u32 *px; } Img;
+static Img G_TILES, G_HERO, G_WALKER, G_BUZZER, G_DWELLER, G_CAP, G_MOON, G_SKY, G_CAVE;
+// Tile sheet cells (8x8 each, 8 per row of tiles.png): the order is part of the modding format.
+enum { CELL_GROUND_TOP, CELL_GROUND, CELL_BRICK, CELL_SPIKES, CELL_SPIKES_DOWN, CELL_STONE, CELL_SPRING,
+       CELL_SLOPE_UP, CELL_SLOPE_DOWN, CELL_FOUND, CELL_CRUMBLE, CELL_PIVOT, CELL_COIN,   /* coin: 4 frames */
+       CELL_TUBE_L = CELL_COIN + 4, CELL_TUBE_R, CELL_TUBE_T, CELL_TUBE_B,
+       CELL_MOUTH,   /* 8: opening up (left, right half), down (l, r), left (top, bottom), right (t, b) */
+       CELL_EMBER = CELL_MOUTH + 8, CELL_SEED, NCELL };
+static const u16 *const HFRAMES[] = { HSTAND, HRUN1, HRUN2, HJUMP, HTHROW, HHANG, HCROUCH, HSPIN, HPOSE, HROLL };
+// Where a sprite's frame is in a loaded image: pixels of its top row, the row stride, the rows to skip.
+static const u32 *spriteimg(const u16 *s, const u32 *spit, int h, int *stride) {
+  const Img *g = 0; int i = 0, top = 0;
+  for (int k = 0; k < 10; k++) if (s == HFRAMES[k]) g = &G_HERO, i = k, top = 12 - h + (capless && G_HERO.h >= 24 ? 12 : 0);
+  if (s == GRUM1 || s == GRUM2) g = &G_WALKER, i = s == GRUM2;
+  if (s == BUZZ1 || s == BUZZ2) g = &G_BUZZER, i = s == BUZZ2;
+  if (s == SNAP1 || s == SNAP2) g = &G_DWELLER, i = (s == SNAP2) + (spit ? 2 : 0);
+  if (s == CAP) g = &G_CAP;
+  if (!g || !g->px) return 0;
+  *stride = g->w;
+  return g->px + top*g->w + i*8;
+}
 // An 8-wide sprite with its feet at (fx, fy) in 1/256 world px, rotated by ang (256 = one
 // turn, clockwise, about its centre) and scaled by sx, sy (256 = 1, about its feet).
+static const u32 SPITPAL[3];
 static void sprx(const u16 *s, int h, int fx, int fy, int fl, int ang, int sx, int sy, const u32 *pal) {
-  int co = SIN[(ang+64) & 255], si = SIN[ang & 255], ux = SC*sx, uy = SC*sy;
+  int co = SIN[(ang+64) & 255], si = SIN[ang & 255], ux = SC*sx, uy = SC*sy, stride = 0;
+  const u32 *img = spriteimg(s, pal == SPITPAL ? pal : 0, h, &stride);
   int cx = fx*SC - (ox << 8), cy = fy*SC - (oy << 8) - h*uy/2;   // centre, 1/256 screen px
   int r = (h > 8 ? h : 8) * (ux > uy ? ux : uy) / 256 * 3 / 4 + 2;
   for (int ys = (cy >> 8) - r; ys <= (cy >> 8) + r; ys++) {
@@ -1153,6 +1243,7 @@ static void sprx(const u16 *s, int h, int fx, int fy, int fl, int ang, int sx, i
       int dx = (xs << 8) + 128 - cx, dy = (ys << 8) + 128 - cy;
       int u = ((dx*co + dy*si) / ux + 4*256) >> 8, v = ((dy*co - dx*si) / uy + h*128) >> 8;
       if ((unsigned)u > 7 || (unsigned)v >= h) continue;
+      if (img) { u32 p = img[v*stride + (fl ? 7-u : u)]; if (p >> 24 >= 128) big[ys][xs] = p & 0xffffff; continue; }
       int c = s[v] >> (14 - 2*(fl ? 7-u : u)) & 3;
       if (c) big[ys][xs] = capless && v >= capoff && v < capoff+3 && c == 1 ? 0x5a3018 : pal[c-1];
     }
@@ -1219,6 +1310,11 @@ static void menutext(const char *s,int x,int y,int z,u32 c) {
   }
 }
 static void centered(const char *s,int y,int z,u32 c) {menutext(s,(MENUW-textwidth(s,z))/2,y,z,c);}
+static void hudtext(const char *s,int x,int y,u32 c) {   // bold menu type with a thick dark outline, for the HUD
+  for(int dy=-3;dy<=4;dy++)for(int dx=-3;dx<=4;dx++)
+    if((dx<0?-dx:dx>1?dx-1:0)+(dy<0?-dy:dy>1?dy-1:0)>=2&&(dx<0?-dx:dx>1?dx-1:0)+(dy<0?-dy:dy>1?dy-1:0)<=3)menutext(s,x+dx,y+dy,1,0x14100c);
+  for(int i=0;i<4;i++)menutext(s,x+(i&1),y+(i>>1),1,c);
+}
 static int menuhit(int x,int y) {
   int page=menusel/6*6;
   for(int i=0;i<6 && page+i<MENUN;i++) {
@@ -1388,6 +1484,11 @@ static void menurender(void) {
     menupreview(choice==MENUN-1?NCARD:LV[choice==NLV?PLAY:choice].card,x+6,y+5);
     mrect(x+6,y+50,186,1,active?0xba884f:0x7694a4);
     for(int row=0;row<24;row++)mrect(x+6,y+51+row,186,1,mixcolor(active?0xffedb2:0xfff5dc,active?0xf5d388:0xe7e8d7,row,32));
+    if(choice<NLV)for(int i=0;i<LV[choice].nmoon;i++) {   // the level's moon coins: gold once brought home
+      int got=moonbits(choice)>>i&1,mx=x+16+i*15,my=y+13;
+      mellipse(mx,my,6,6,0x2c3a66);mellipse(mx,my,5,5,got?0xdbe6ff:0x56679a);
+      if(got){mellipse(mx-1,my,3,4,0xf2c440);mellipse(mx+1,my-1,3,3,0xdbe6ff);}
+    }
     const char *name=choice==MENUN-1?"HIGH SCORES":choice==NLV?"PLAYGROUND":LV[choice].name;
     char number[12];snprintf(number,sizeof number,"%d",choice+1);
     int width=textwidth(name,1);
@@ -1421,76 +1522,128 @@ static u32 coinpx(int u, int v, int f) {   // the spinning coin, frame counter f
   if (v < 1 || v > 6 || d > 2*rw+1) return 0;
   return d > 2*rw-2 ? 0xc88a18 : 0xffd84a;
 }
-static u32 tilepx(int t, int tx, int ty, int u, int v) {
-  int up = SOLID >> tile(tx, ty-1) & 1;
-  if (t == 8 || t == 9) {
-    int surface = t == 8 ? 7-u : u;
-    if (v < surface) return 0;
-    return v == surface ? 0x8be05a : v <= surface+2 ? 0x4cb83c : 0xa8642c;
+// Which sheet cell a tile shows, from its neighbours (grass on top, hanging spikes, tube halves).
+static int cellof(int t, int tx, int ty) {
+  int up = SOLID >> tile(tx, ty-1) & 1, n = 0;
+  switch (t) {
+    case 1: return up ? CELL_GROUND : CELL_GROUND_TOP;
+    case 2: return CELL_BRICK;
+    case 3: return up && !(SOLID >> tile(tx, ty+1) & 1) ? CELL_SPIKES_DOWN : CELL_SPIKES;
+    case 4: return CELL_STONE;
+    case 5: return CELL_SPRING;
+    case 6: return CELL_COIN + (fr >> 3 & 3);
+    case 8: return CELL_SLOPE_UP;
+    case 9: return CELL_SLOPE_DOWN;
+    case 10: while (tile(tx-1-n, ty) == 10) n++; return n & 1 ? CELL_TUBE_R : CELL_TUBE_L;
+    case 11: while (tile(tx, ty-1-n) == 11) n++; return n & 1 ? CELL_TUBE_B : CELL_TUBE_T;
+    case 12: { const Tube *m = tubeat(tx, ty);
+               return CELL_MOUTH + (m ? m->dir : T_UP)*2 + (m && (m->dir < T_LEFT ? tx > m->x : ty > m->y)); }
+    case 13: return CELL_CRUMBLE;
+    case 15: return CELL_FOUND;
+    case 16: return CELL_PIVOT;
   }
-  if (t == 1) {
-    if (!up && v < 3 && !(v == 2 && (u*5+tx) % 3 == 0)) return v ? 0x4cb83c : 0x8be05a;
-    if (!up && v == 3) return 0x6a3a1a;
-    return (u*7+v*3+tx*5+ty*11) % 11 ? 0xa8642c : 0x7a4420;
+  return -1;   // 14: hidden until found
+}
+// The built-in art of a cell; tx, ty only add texture (speckles, the bands on tubes).
+static u32 cellpx(int cell, int tx, int ty, int u, int v) {
+  switch (cell) {
+    case CELL_SLOPE_UP: case CELL_SLOPE_DOWN: {
+      int surface = cell == CELL_SLOPE_UP ? 7-u : u;
+      if (v < surface) return 0;
+      return v == surface ? 0x8be05a : v <= surface+2 ? 0x4cb83c : 0xa8642c;
+    }
+    case CELL_GROUND_TOP:
+      if (v < 3 && !(v == 2 && (u*5+tx) % 3 == 0)) return v ? 0x4cb83c : 0x8be05a;
+      if (v == 3) return 0x6a3a1a;
+      /* fall through */
+    case CELL_GROUND: return (u*7+v*3+tx*5+ty*11) % 11 ? 0xa8642c : 0x7a4420;
+    case CELL_BRICK:
+      if (v == 3 || v == 7 || (v < 3 ? u == 7 : u == 3)) return 0x5a2410;
+      return v == 0 || v == 4 ? 0xf09060 : 0xd0602a;
+    case CELL_SPIKES: case CELL_SPIKES_DOWN: {
+      int vv = cell == CELL_SPIKES_DOWN ? 7-v : v, q = u & 3;
+      if (vv == 7) return 0x606870;
+      if (vv < (q == 0 || q == 3 ? 4 : 1)) return 0;
+      return q < 2 ? 0xe0e6ee : 0x8a94a0;
+    }
+    case CELL_STONE: return v == 0 || u == 0 ? 0xc8d0e0 : v == 7 || u == 7 ? 0x586070 : 0x9098a8;
+    case CELL_SPRING:
+      if (v < 3) return v ? 0xe8403a : 0xff8a7a;
+      return v & 1 ? 0x9aa4b0 : u > 1 && u < 6 ? 0x606a78 : 0;
+    case CELL_COIN: case CELL_COIN+1: case CELL_COIN+2: case CELL_COIN+3: return coinpx(u, v, (cell - CELL_COIN) << 3);
+    case CELL_TUBE_L: case CELL_TUBE_R: { int a = u + (cell == CELL_TUBE_R)*8; return a == 0 || a == 15 ? 0 : brass(a, ty*8+v+1); }
+    case CELL_TUBE_T: case CELL_TUBE_B: { int a = v + (cell == CELL_TUBE_B)*8; return a == 0 || a == 15 ? 0 : brass(a, tx*8+u+1); }
+    case CELL_CRUMBLE:   // a cracked biscuit
+      if (u == 0 || v == 0) return 0xf6dca0;
+      if (u == 7 || v == 7) return 0x6e4420;
+      if ((v == 3 && u < 5) || (u == 4 && v > 3) || (u == 2 && v < 3) || (v == 5 && u > 4)) return 0x9a6630;
+      return 0xe2b56a;
+    case CELL_FOUND:   // a found hidden block with a little cap stamp
+      if (u == 0 || v == 0) return 0xa6dce0;
+      if (u == 7 || v == 7) return 0x2e5a66;
+      if ((v == 3 || v == 4) && u > 1 && u < 6 && !(v == 4 && (u == 2 || u == 5))) return 0x3c7480;
+      return 0x5e9aa6;
+    case CELL_PIVOT:   // iron with an ember
+      if ((u == 3 || u == 4) && (v == 3 || v == 4)) return (fr >> 2 & 1) ? 0xffe08a : 0xffb040;
+      if (u > 1 && u < 6 && v > 1 && v < 6) return 0xc8501c;
+      if (u == 0 || v == 0) return 0x7a8290;
+      if (u == 7 || v == 7) return 0x262a32;
+      return 0x4a4f5a;
+    case CELL_EMBER: case CELL_SEED: {   // 4x4 in the middle of the cell
+      int k = u - 4, j = v - 4, edge = (k == -2 || k == 1) + (j == -2 || j == 1);
+      if (k < -2 || k > 1 || j < -2 || j > 1 || edge == 2) return 0;
+      if (cell == CELL_SEED) return k+j == -2 ? 0xe0b070 : (k+j) & 1 ? 0x7a4a24 : 0x5a3418;
+      return edge ? 0xff7a20 : 0xffc040;
+    }
   }
-  if (t == 2) {
-    if (v == 3 || v == 7 || (v < 3 ? u == 7 : u == 3)) return 0x5a2410;
-    return v == 0 || v == 4 ? 0xf09060 : 0xd0602a;
-  }
-  if (t == 3) {
-    int vv = up && !(SOLID >> tile(tx, ty+1) & 1) ? 7-v : v, q = u & 3;
-    if (vv == 7) return 0x606870;
-    if (vv < (q == 0 || q == 3 ? 4 : 1)) return 0;
-    return q < 2 ? 0xe0e6ee : 0x8a94a0;
-  }
-  if (t == 4) return v == 0 || u == 0 ? 0xc8d0e0 : v == 7 || u == 7 ? 0x586070 : 0x9098a8;
-  if (t == 5) {
-    if (v < 3) return v ? 0xe8403a : 0xff8a7a;
-    return v & 1 ? 0x9aa4b0 : u > 1 && u < 6 ? 0x606a78 : 0;
-  }
-  if (t == 6) return coinpx(u, v, fr);
-  if (t == 10 || t == 11) {   // tube bodies, 2 cells across: which half is this one?
-    int n = 0;
-    if (t == 10) { while (tile(tx-1-n, ty) == 10) n++; int a = u + (n & 1)*8; return a == 0 || a == 15 ? 0 : brass(a < 1 ? 1 : a > 14 ? 14 : a, ty*8+v+1); }
-    while (tile(tx, ty-1-n) == 11) n++;
-    int a = v + (n & 1)*8; return a == 0 || a == 15 ? 0 : brass(a, tx*8+u+1);
-  }
-  if (t == 12) {   // a mouth: a wide collar with the dark opening on its open side
-    const Tube *m = tubeat(tx, ty);
-    int dir = m ? m->dir : T_UP, across, along;
-    if (dir < T_LEFT) across = u + (m && tx > m->x)*8, along = dir == T_UP ? v : 7-v;
-    else across = v + (m && ty > m->y)*8, along = dir == T_LEFT ? u : 7-u;
+  if (cell >= CELL_MOUTH && cell < CELL_MOUTH + 8) {   // a wide collar with the dark opening on its open side
+    int dir = (cell - CELL_MOUTH) / 2, half = (cell - CELL_MOUTH) & 1, across, along;
+    if (dir < T_LEFT) across = u + half*8, along = dir == T_UP ? v : 7-v;
+    else across = v + half*8, along = dir == T_LEFT ? u : 7-u;
     if (along == 0 || along == 7) return 0x3e2a10;
-    if (along < 3 && across > 1 && across < 14) return along == 1 ? 0x140c04 : 0x2a1a08;   // the opening
-    if (along == 5 && (across == 3 || across == 12)) return 0xfff0b0;                      // rivets
+    if (along < 3 && across > 1 && across < 14) return along == 1 ? 0x140c04 : 0x2a1a08;
+    if (along == 5 && (across == 3 || across == 12)) return 0xfff0b0;
     return across == 0 || across == 15 ? 0x3e2a10 : brass(across, 1);
   }
-  if (t == 13) {   // crumble block: a cracked biscuit
-    if (u == 0 || v == 0) return 0xf6dca0;
-    if (u == 7 || v == 7) return 0x6e4420;
-    if ((v == 3 && u < 5) || (u == 4 && v > 3) || (u == 2 && v < 3) || (v == 5 && u > 4)) return 0x9a6630;
-    return 0xe2b56a;
-  }
-  if (t == 15) {   // a found hidden block
-    if (u == 0 || v == 0) return 0xa6dce0;
-    if (u == 7 || v == 7) return 0x2e5a66;
-    if ((v == 3 || v == 4) && u > 1 && u < 6 && !(v == 4 && (u == 2 || u == 5))) return 0x3c7480;   // a little cap stamp
-    return 0x5e9aa6;
-  }
-  if (t == 16) {   // fire bar pivot: iron with an ember
-    if ((u == 3 || u == 4) && (v == 3 || v == 4)) return (fr >> 2 & 1) ? 0xffe08a : 0xffb040;
-    if (u > 1 && u < 6 && v > 1 && v < 6) return 0xc8501c;
-    if (u == 0 || v == 0) return 0x7a8290;
-    if (u == 7 || v == 7) return 0x262a32;
-    return 0x4a4f5a;
-  }
-  return 0;   // 14: hidden until found
+  return 0;
+}
+static u32 sheetpx(int cell, int tx, int ty, int u, int v) {   // tiles.png if there is one, else the built-in art
+  if (!G_TILES.px) return cellpx(cell, tx, ty, u, v);
+  u32 p = G_TILES.px[(cell/8*8 + v)*G_TILES.w + cell%8*8 + u];
+  return p >> 24 >= 128 ? p & 0xffffff : 0;
+}
+static u32 tilepx(int t, int tx, int ty, int u, int v) {
+  int cell = cellof(t, tx, ty);
+  return cell < 0 ? 0 : sheetpx(cell, tx, ty, u, v);
 }
 static void drawtile(int t, int tx, int ty, int dx, int dy) {
   for (int v = 0; v < 8; v++) for (int u = 0; u < 8; u++) {
     u32 c = tilepx(t, tx, ty, u, v);
     if (c) wpx(tx*8+u+dx, ty*8+v+dy, c);
   }
+}
+static u32 moonpx(int u, int v) {   // the built-in moon coin, u, v in -6..6 from its centre (0: outside)
+  int d = u*u + v*v, moon = (u+1)*(u+1) + v*v <= 16 && (u-1)*(u-1) + (v+1)*(v+1) > 10;   // crescent: one disc minus another
+  return d > 38 ? 0 : d >= 30 ? 0x3a4a7a : d >= 22 ? 0x8fa8d8 : moon ? (v < -1 ? 0xfff3b0 : 0xf2c440) : 0xdbe6ff;
+}
+// A moon coin centred at (cx, cy) world px: a silver-blue coin with a gold crescent and a glint.
+// One brought home before shows as a faint outline that can still be picked up.
+static void drawmoon(int cx, int cy, int ghost) {
+  if (G_MOON.px) {   // moon.png, centred; an outline-only ghost uses every other pixel, pale
+    for (int v = 0; v < G_MOON.h; v++) for (int u = 0; u < G_MOON.w; u++) {
+      u32 p = G_MOON.px[v*G_MOON.w + u];
+      if (p >> 24 >= 128 && (!ghost || (u + v) & 1)) wpx(cx - G_MOON.w/2 + u, cy - G_MOON.h/2 + v, ghost ? 0xc8d4f0 : p & 0xffffff);
+    }
+    return;
+  }
+  for (int v = -6; v <= 6; v++) for (int u = -6; u <= 6; u++) {
+    int d = u*u + v*v;
+    if (d > 38) continue;
+    if (ghost) { if (d >= 26 && (u + v) & 1) wpx(cx+u, cy+v, 0xc8d4f0); continue; }
+    wpx(cx+u, cy+v, moonpx(u, v));
+  }
+  int g = fr % 90;   // a glint crossing now and then
+  if (!ghost && g < 12) for (int k = -1; k <= 1; k++) wpx(cx - 4 + g*2/3 + k, cy - 4 + k, 0xffffff);
 }
 static void wnum(int v, int x, int y, u32 c) {   // a small number at world px (score pop-ups)
   char d[12]; int n = snprintf(d, sizeof d, "%d", v);
@@ -1574,17 +1727,17 @@ static void drawhero(void) {
   sy = 256 + sqv; sx = sx * (256 - sqv/2) >> 8; sqv = sqv * 13 / 16;
   sprx(f, sh, fx, fy + bob + iabs(vang) * 512 / 64, fl, ang, sx, sy, HPAL);
 }
-static const u32 SNAPPAL[3] = { 0x2f8f9a, 0xf4e6c0, 0x1b2433 }, SPITPAL[3] = { 0xe0586a, 0xf4e6c0, 0x3a1424 };
-
-static void render(void) {
+static const u32 SNAPPAL[3] = { 0x2f8f9a, 0xf4e6c0, 0x1b2433 };
+// The background behind everything: sky.png / cave.png, or the built-in sky, clouds and hills / cave.
+static void drawbg(int cave, int lo) {
   static int cm[SW], fh[SW], nh[SW];
-  const Level *L = LV + lvl;
-  if (menu || naming) { menurender(); return; }
-  camera();
-  ox = cxf * SC >> 8;
-  oy = (cyf * SC >> 8) + (shake ? (shake & 2 ? 2*SC : -2*SC) : 0);
-  int lo = (((MH*8-H) << 8) - cyf) * SC >> 8;     // camera height above the bottom, screen px
-  if (L->room[room].cave) {   // bonus rooms: a dim cave with a few glinting stones
+  const Img *bg = cave ? &G_CAVE : &G_SKY;
+  if (bg->px) {   // sky.png / cave.png: fixed to the screen vertically, scrolling at a quarter speed
+    for (int y = 0; y < SH; y++) {
+      const u32 *src = bg->px + (y / SC * bg->h / H) * bg->w;
+      for (int x = 0; x < SW; x++) big[y][x] = src[((x + ox/4) / SC) % bg->w] & 0xffffff;
+    }
+  } else if (cave) {   // bonus rooms: a dim cave with a few glinting stones
     for (int y = 0; y < SH; y++) {
       u32 *row = big[y], c = mixcolor(0x1c1a2c, 0x34283a, y, SH);
       for (int x = 0; x < SW; x++) {
@@ -1611,6 +1764,17 @@ static void render(void) {
       }
     }
   }
+}
+static const u32 SPITPAL[3] = { 0xe0586a, 0xf4e6c0, 0x3a1424 };
+
+static void render(void) {
+  const Level *L = LV + lvl;
+  if (menu || naming) { menurender(); return; }
+  camera();
+  ox = cxf * SC >> 8;
+  oy = (cyf * SC >> 8) + (shake ? (shake & 2 ? 2*SC : -2*SC) : 0);
+  int lo = (((MH*8-H) << 8) - cyf) * SC >> 8;     // camera height above the bottom, screen px
+  drawbg(L->room[room].cave, lo);
   // behind the tiles: tube dwellers and Hatrick inside a tube, so the brass hides them
   for (int i = 0; i < L->nhome; i++) {
     const Dweller *d = wd.dw + i; const Home *h = L->home + i;
@@ -1632,6 +1796,8 @@ static void render(void) {
     }
   for (const Crumble *c = wd.cr; c < wd.cr + wd.ncr; c++)   // falling crumble blocks
     if (c->room == room && c->state == 1) for (int v = 0; v < 8; v++) for (int u = 0; u < 8; u++) wpx(c->x*8+u, (c->fy >> 8)+v, tilepx(13, c->x, c->y, u, v));
+  for (int i = 0; i < L->nmoon; i++) if (L->moon[i].room == room && !(wd.moongot >> i & 1))   // moon coins
+    drawmoon(L->moon[i].x*8+4, L->moon[i].y*8+4 + (SIN[(fr*3 + i*85) & 255] > 128) - (SIN[(fr*3 + i*85) & 255] < -128), moonbits(lvl) >> i & 1);
   for (const Check *c = wd.ck; c < wd.ck + wd.nck; c++) if (c->room == room) {   // checkpoints: a post and a banner that rises
     int x = c->x*8+3, base = c->y*8+8, by = base-5 - (c->up ? (c->up >= 20 ? 11 : c->up*11/20) : 0);
     for (int y = base-16; y < base; y++) wpx(x, y, 0xe8ecf0), wpx(x+1, y, 0x8a94a0);
@@ -1656,12 +1822,16 @@ static void render(void) {
       else sprx(fr & 4 ? BUZZ2 : BUZZ1, 8, e->x + (4 << 8), e->y + (8 << 8) - lift*2/3, 0, 0, 256, 256 + stretch/2, BPAL);
     }
   for (const Shot *p = wd.sh; p < wd.sh+8; p++) if (p->a && p->room == room)   // spitter seeds
-    for (int j = -2; j < 2; j++) for (int i = -2; i < 2; i++) if ((i != -2 && i != 1) || (j != -2 && j != 1))
-      wpx((p->x >> 8)+i, (p->y >> 8)+j, i+j == -2 ? 0xe0b070 : (i+j+(fr >> 2)) & 1 ? 0x7a4a24 : 0x5a3418);
+    for (int j = -4; j < 4; j++) for (int i = -4; i < 4; i++) {
+      u32 c = G_TILES.px ? sheetpx(CELL_SEED, 0, 0, i+4, j+4) : (i < -2 || i > 1 || j < -2 || j > 1 || ((i == -2 || i == 1) && (j == -2 || j == 1))) ? 0 :
+              i+j == -2 ? 0xe0b070 : (i+j+(fr >> 2)) & 1 ? 0x7a4a24 : 0x5a3418;
+      if (c) wpx((p->x >> 8)+i, (p->y >> 8)+j, c);
+    }
   for (const Bar *b = L->bar; b < L->bar + L->nbar; b++) if (b->room == room) {   // fire bars: a line of embers
     int a = (b->a0*256 + b->speed*fr) >> 8 & 255;
     for (int i = 0; i < b->len; i++) {
       int fx = b->x*8+4 + SIN[(a+64) & 255]*i*8/256, fy = b->y*8+4 + SIN[a]*i*8/256, fl = (fr + i) >> 1 & 1;
+      if (G_TILES.px) { for (int j = -4; j < 4; j++) for (int k = -4; k < 4; k++) { u32 c = sheetpx(CELL_EMBER, 0, 0, k+4, j+4); if (c) wpx(fx+k, fy+j, c); } continue; }
       for (int j = -2; j < 2; j++) for (int k = -2; k < 2; k++) {
         int edge = (k == -2 || k == 1) + (j == -2 || j == 1);
         if (edge == 2) continue;
@@ -1693,20 +1863,30 @@ static void render(void) {
       int z = p->l*3 > p->ml ? 2*SC : SC;   // particles shrink as they fade
       blk((p->x*SC >> 8) - ox - z/2, (p->y*SC >> 8) - oy - z/2, z, z, p->c);
     }
-  // HUD: level, deaths, coins, score, run time
-  txt(I_FLAG, 5, 25, 4, 4, 1, 0xffffff); num(lvl+1, 1, 11, 4, 1, 0xffffff);
-  txt(I_SKULL, 5, 25, 24, 4, 1, 0xffffff); num(deaths, 1, 31, 4, 1, 0xffffff);
-  txt(I_COIN, 5, 25, 56, 4, 1, 0xffd84a); num(coins, 1, 63, 4, 1, 0xffffff);
-  txt(I_STAR, 5, 25, 84, 4, 1, 0xffd84a); num(score, 6, 91, 4, 1, 0xffffff);
+  // HUD, in the menu's smooth type with a dark outline: coins left, score in the middle, time left right
   {
-    int s = done ? 2 : 1, x = done ? 84 : W-48, yy = done ? 52 : 4;
-    u32 c = done ? 0xffd84a : 0xffffff;
+    char t[16];
+    mellipse(40, 37, 11, 15, 0x14100c); mellipse(40, 37, 9, 13, 0xc87a10); mellipse(41, 37, 7, 12, 0xffc93a);   // the coin
+    mrect(39, 28, 3, 18, 0xfff0a8);
+    for (int o = -3; o <= 3; o++) { mline(59+o, 30, 71+o, 44, 0x14100c); mline(71+o, 30, 59+o, 44, 0x14100c); }
+    for (int o = -1; o <= 1; o++) { mline(61+o, 32, 69+o, 42, 0xffffff); mline(69+o, 32, 61+o, 42, 0xffffff); }   // the times sign
+    snprintf(t, sizeof t, "%02d", coins); hudtext(t, 82, 26, 0xffffff);
+    snprintf(t, sizeof t, "%06d", score); hudtext(t, (MENUW - textwidth(t, 1)) / 2, 26, 0xffffff);
+    int hurry = left < 100*60;
+    u32 c = hurry ? (fr & 16 ? 0xff5a4a : 0xffb0a0) : 0xffffff;
+    mellipse(670, 37, 14, 14, 0x14100c); mellipse(670, 37, 12, 12, c);                                         // the clock
+    for (int o = -1; o <= 0; o++) { mline(670+o, 37, 670+o, 28, 0x14100c); mline(670, 37+o, 678, 37+o, 0x14100c); }
+    snprintf(t, sizeof t, "%03d", (left + 59) / 60); hudtext(t, 692, 26, c);
+  }
+  if (done) {   // the run is over: its time and score, big
+    int s = 2, x = 84, yy = 52;
+    u32 c = 0xffd84a;
     x = num(tim/3600, 1, x, yy, s, c);
     txt(FONT[10], 3, 15, x, yy, s, c);
     x = num(tim/60 % 60, 2, x+4*s, yy, s, c);
     txt(FONT[11], 3, 15, x, yy, s, c);
     num(tim % 60 * 100 / 60, 2, x+4*s, yy, s, c);
-    if (done) { txt(I_STAR, 5, 25, 84, 72, 2, 0xffd84a); num(score, 6, 98, 72, 2, 0xffffff); }
+    txt(I_STAR, 5, 25, 84, 72, 2, 0xffd84a); num(score, 6, 98, 72, 2, 0xffffff);
   }
   if (st == WIN && wphase && !done) {   // course clear: this level's time, the score, the bonus still to count
     int x = 88, y = 40;
@@ -1731,6 +1911,36 @@ static void render(void) {
 #include <time.h>
 #include <unistd.h>
 #include "audio.h"
+#include "vendor/stb_image.h"
+
+// Replacement art from assets/gfx/*.png (MODDING.md lists the files and their layouts). A missing
+// file keeps the built-in art; a file of the wrong size is reported and skipped.
+static void gfxload(const char *dir) {
+  static const struct { Img *g; const char *name; int w, h, h2; } F[] = {
+    { &G_TILES, "tiles", 64, 32, 0 }, { &G_HERO, "hatrick", 80, 12, 24 }, { &G_WALKER, "walker", 16, 8, 0 },
+    { &G_BUZZER, "buzzer", 16, 8, 0 }, { &G_DWELLER, "dweller", 32, 16, 0 }, { &G_CAP, "cap", 8, 4, 0 },
+    { &G_MOON, "moon", 13, 13, 0 }, { &G_SKY, "sky", 0, 0, 0 }, { &G_CAVE, "cave", 0, 0, 0 },
+  };
+  for (size_t i = 0; i < sizeof F / sizeof *F; i++) {
+    char path[1200]; int w, h, n;
+    snprintf(path, sizeof path, "%s/gfx/%s.png", dir, F[i].name);
+    if (access(path, F_OK) < 0) continue;
+    unsigned char *px = stbi_load(path, &w, &h, &n, 4);
+    if (!px) { fprintf(stderr, "hatrick: cannot read %s (%s); using the built-in art\n", path, stbi_failure_reason()); continue; }
+    if (F[i].w && (w != F[i].w || (h != F[i].h && h != F[i].h2))) {
+      if (F[i].h2) fprintf(stderr, "hatrick: %s is %dx%d, it must be %dx%d or %dx%d; using the built-in art\n", path, w, h, F[i].w, F[i].h, F[i].w, F[i].h2);
+      else fprintf(stderr, "hatrick: %s is %dx%d, it must be %dx%d; using the built-in art\n", path, w, h, F[i].w, F[i].h);
+      stbi_image_free(px); continue;
+    }
+    u32 *out = malloc((size_t)w*h*4);
+    for (int k = 0; k < w*h; k++) {
+      u32 c = px[4*k] << 16 | px[4*k+1] << 8 | px[4*k+2], a = px[4*k+3];
+      out[k] = a << 24 | (c ? c : 0x010101);
+    }
+    stbi_image_free(px);
+    F[i].g->w = w; F[i].g->h = h; F[i].g->px = out;
+  }
+}
 
 // ---------- gamepads: every evdev gamepad is read directly, Super Mario Odyssey layout ----------
 // A/B jump, X/Y cap, LT/RT (or LB/RB) crouch / ground pound, left stick or D-pad move,
@@ -1878,6 +2088,7 @@ int main(int argc, char **argv) {
   char dir[1024];
   assetdir(dir, sizeof dir);
   modlevels();
+  gfxload(dir);
   if (!snd_init(dir, silent, dump)) fprintf(stderr, "hatrick: playing without sound\n");
   Display *d = XOpenDisplay(0);
   if (!d) { fprintf(stderr, "hatrick: cannot open display\n"); return 1; }
@@ -1891,7 +2102,7 @@ int main(int argc, char **argv) {
   struct timespec t;
   char km[32];
   int volume = 8, volkeys = 0;
-  load(); menu = 1; hiload();
+  load(); menu = 1; hiload(); moonload();
   clock_gettime(CLOCK_MONOTONIC, &t);
   for (;;) {
     while (XPending(d)) {
@@ -1937,6 +2148,47 @@ int main(int argc, char **argv) {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// Writes the built-in art in the layouts of assets/gfx/*.png, as raw RGBA files NAME.rgba in dir,
+// and prints "NAME W H" for each (tools/export_gfx.py turns them into PNG templates).
+static void putimg(const char *dir, const char *name, int w, int h, const u32 *px) {
+  char path[1200]; snprintf(path, sizeof path, "%s/%s.rgba", dir, name);
+  FILE *f = fopen(path, "wb");
+  for (int i = 0; i < w*h; i++) { u32 c = px[i]; fputc(c >> 16 & 255, f); fputc(c >> 8 & 255, f); fputc(c & 255, f); fputc(c ? 255 : 0, f); }
+  fclose(f);
+  printf("%s %d %d\n", name, w, h);
+}
+static void sprimg(u32 *dst, int w, int x0, int y0, const u16 *s, int h, const u32 *pal, int capoff_) {   // a 2-bit sprite into an image
+  for (int v = 0; v < h; v++) for (int u = 0; u < 8; u++) {
+    int c = s[v] >> (14 - 2*u) & 3;
+    dst[(y0+v)*w + x0+u] = !c ? 0 : capoff_ >= 0 && v >= capoff_ && v < capoff_+3 && c == 1 ? 0x5a3018 : pal[c-1];
+  }
+}
+static int exportgfx(const char *dir) {
+  static u32 tiles[32*64], hero[24*80], walker[8*16], buzz[8*16], dw[16*32], cap[4*8], moon[13*13], sky[H*W];
+  for (int c = 0; c < NCELL; c++) for (int v = 0; v < 8; v++) for (int u = 0; u < 8; u++)
+    tiles[(c/8*8 + v)*64 + c%8*8 + u] = cellpx(c, 0, 1, u, v);
+  for (int k = 0; k < 10; k++) {
+    int h = HFRAMES[k] == HROLL ? 8 : 12;
+    sprimg(hero, 80, k*8, 12-h, HFRAMES[k], h, HPAL, -1);
+    sprimg(hero, 80, k*8, 24-h, HFRAMES[k], h, HPAL, HFRAMES[k] == HCROUCH ? 5 : 0);   // second row: the cap thrown
+  }
+  sprimg(walker, 16, 0, 0, GRUM1, 8, GPAL, -1); sprimg(walker, 16, 8, 0, GRUM2, 8, GPAL, -1);
+  sprimg(buzz, 16, 0, 0, BUZZ1, 8, BPAL, -1); sprimg(buzz, 16, 8, 0, BUZZ2, 8, BPAL, -1);
+  sprimg(dw, 32, 0, 0, SNAP1, 16, SNAPPAL, -1); sprimg(dw, 32, 8, 0, SNAP2, 16, SNAPPAL, -1);
+  sprimg(dw, 32, 16, 0, SNAP1, 16, SPITPAL, -1); sprimg(dw, 32, 24, 0, SNAP2, 16, SPITPAL, -1);
+  sprimg(cap, 8, 0, 0, CAP, 4, HPAL, -1);
+  for (int v = 0; v < 13; v++) for (int u = 0; u < 13; u++) moon[v*13 + u] = moonpx(u-6, v-6);
+  putimg(dir, "tiles", 64, 32, tiles); putimg(dir, "hatrick", 80, 24, hero); putimg(dir, "walker", 16, 8, walker);
+  putimg(dir, "buzzer", 16, 8, buzz); putimg(dir, "dweller", 32, 16, dw); putimg(dir, "cap", 8, 4, cap); putimg(dir, "moon", 13, 13, moon);
+  for (int cave = 0; cave < 2; cave++) {   // one screen of each background, from the bottom of a level
+    ox = oy = 0; cyf = (MH*8-H) << 8;
+    drawbg(cave, 0);
+    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) sky[y*W + x] = big[y*SC][x*SC];
+    putimg(dir, cave ? "cave" : "sky", W, H, sky);
+  }
+  return 0;
+}
+
 int main(int argc, char **argv) {
   // usage: sim LEVEL TASFILE [trace] [dumpframe out.ppm]   (levels: assets/levels.txt next to sim)
   //        sim --check    reports mistakes in assets/levels.txt; exit status 1 if there are any
@@ -1952,7 +2204,8 @@ int main(int argc, char **argv) {
     if (ok) printf("levels: %d campaign + %d lab, %s\n", NLV, NLEVEL - NLV, n ? "with the problems above" : "no problems");
     return !ok || n;
   }
-  if (argc < 3) { fprintf(stderr, "usage: sim LEVEL TASFILE [trace] [frame out.ppm] | sim --check\n"); return 3; }
+  if (argc > 2 && !strcmp(argv[1], "--export-gfx")) return exportgfx(argv[2]);
+  if (argc < 3) { fprintf(stderr, "usage: sim LEVEL TASFILE [trace] [frame out.ppm] | sim --check | sim --export-gfx DIR\n"); return 3; }
   modlevels();
   lvl = atoi(argv[1]);
   if (lvl < 0 || lvl >= NLEVEL) { fprintf(stderr, "sim: no level %d (there are %d)\n", lvl, NLEVEL); return 3; }
@@ -1968,7 +2221,7 @@ int main(int argc, char **argv) {
       if (rumq && getenv("RUMLOG")) printf("RUMBLE %d %d\n", frame, rumq);
       rumq = 0;
       if (trace) {
-        printf("%d %s x=%.1f y=%.1f vx=%d vy=%d st=%d gnd=%d cap=%d room=%d score=%d wall=%d", frame, b, hx/256., hy/256., hvx, hvy, st, gnd, cst, room, score, wall);
+        printf("%d %s x=%.1f y=%.1f vx=%d vy=%d st=%d gnd=%d cap=%d room=%d score=%d wall=%d moons=%d", frame, b, hx/256., hy/256., hvx, hvy, st, gnd, cst, room, score, wall, wd.moongot);
         for (E *e = en; e < en+ne; e++) if (e->a && iabs(e->x-hx) < 160<<8) printf(" e=%d,%d", e->x >> 8, e->y >> 8);
         printf("\n");
       }
@@ -1981,7 +2234,7 @@ int main(int argc, char **argv) {
         fclose(o);
       }
       if (st == DEAD && stt == 0 && !(getenv("SIM_RESPAWN") && *getenv("SIM_RESPAWN"))) { printf("DIED frame %d at x=%d y=%d (tile %d,%d)\n", frame, hx >> 8, hy >> 8, hx >> 11, hy >> 11); return 1; }
-      if (st == WIN && stt == 1) { printf("GOAL frame %d (%.2fs) coins %d score %d deaths %d\n", frame, frame/60., coins, score, deaths); return 0; }
+      if (st == WIN && stt == 1) { printf("GOAL frame %d (%.2fs) coins %d score %d deaths %d moons %d/%d\n", frame, frame/60., coins, score, deaths, __builtin_popcount(wd.moongot), LV[lvl].nmoon); return 0; }
     }
   }
   printf("END frame %d at x=%d y=%d (tile %d,%d) st=%d\n", frame, hx >> 8, hy >> 8, hx >> 11, hy >> 11, st);

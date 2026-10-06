@@ -10,3 +10,5 @@ __pycache__/
 /assets/preview/
 /audio.o
 /vendor/miniaudio.o
+/vendor/stb_image.o
+/gfx-template/

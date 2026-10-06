@@ -21,13 +21,14 @@ with tempfile.TemporaryDirectory(prefix='hatrick-menu-test-') as tmp:
     source = (REPO / 'hatrick.c').read_text()
     for name in ('gfx.h', 'levels.h', 'sound.h', 'audio.h'):
         source = source.replace(f'#include "{name}"', f'#include "{REPO / name}"')
+    source = source.replace('#include "vendor/stb_image.h"', f'#include "{REPO / "vendor" / "stb_image.h"}"')
     source = source.replace('(active ? padkeys() : 0)', '0')  # don't read the user's physical gamepad
     source = source.replace('    render();\n    XPutImage',
         '    { int tr[] = { menu, menusel, resumable, quitting, lvl, hx, hy, hvx, hvy, st, gnd, prevk, tim }; fwrite(tr, sizeof tr, 1, stdout); fflush(stdout); }\n    render();\n    XPutImage')
     (base / 'menu-test.c').write_text(source)
     binary = base / 'menu-test'
     subprocess.run(['gcc', '-O2', '-w', str(base / 'menu-test.c'), str(REPO / 'audio.o'),
-                    str(REPO / 'vendor' / 'miniaudio.o'), '-o', str(binary), '-lX11', '-lm', '-lpthread', '-ldl'],
+                    str(REPO / 'vendor' / 'miniaudio.o'), str(REPO / 'vendor' / 'stb_image.o'), '-o', str(binary), '-lX11', '-lm', '-lpthread', '-ldl'],
                    check=True)
     (base / 'assets').symlink_to(REPO / 'assets')   # the audio engine runs, on its silent null device
     readfd, writefd = os.pipe()

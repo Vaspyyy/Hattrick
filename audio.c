@@ -31,7 +31,7 @@ static const char *const SOUND_FILE[NSOUND] = {
   "sfx/cap_throw", "sfx/cap_catch", "sfx/cap_bounce", "sfx/stomp", "sfx/brick", "sfx/gp_spin", "sfx/gp_land",
   "sfx/spring", "sfx/wall_jump", "sfx/land", "sfx/skid", "sfx/ledge", "sfx/menu_move", "sfx/menu_ok",
   "sfx/menu_back", "sfx/pause", "sfx/checkpoint", "sfx/tube", "sfx/crumble", "sfx/reveal", "sfx/spit", "sfx/emerge",
-  "sfx/tick", "sfx/bonus", "music/jingle_clear", "music/jingle_death",
+  "sfx/tick", "sfx/bonus", "sfx/hurry", "sfx/moon", "music/jingle_clear", "music/jingle_death",
 };
 
 typedef struct { float *pcm; ma_uint64 frames; } Clip;
