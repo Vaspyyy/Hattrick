@@ -1016,7 +1016,6 @@ static void render(void) {
 #include <time.h>
 #include <unistd.h>
 #include "audio.h"
-#include "music.h"
 
 // ---------- gamepads: every evdev gamepad is read directly, Super Mario Odyssey layout ----------
 // A/B jump, X/Y cap, LT/RT (or LB/RB) crouch / ground pound, left stick or D-pad move,
@@ -1150,18 +1149,8 @@ static void director(void) {
   for (int s = 0; s < NSTEM; s++)
     snd_stem(s, g[s] * MUSIC, s == STEM_FAST && g[s] ? 400 : s == STEM_ARP && g[s] ? 150 : (s >= STEM_FAST && !g[s] && !menu ? 1500 : ms));
   // enemies hop for a quarter second after each "bah" (a little earlier than the device latency)
-  double beat = snd_beat();
-  hop = 0;
-  if (beat >= 0 && theme >= 0) {
-    double spb = 60.0 / THEME[theme].bpm, now = beat - 0.03 / spb, last = -1e9;
-    for (int i = 0; i < THEME[theme].nbah; i++) {
-      double b = THEME[theme].bah[i];
-      if (b > now) b -= THEME[theme].beats;   // wraps around the loop
-      if (b > last) last = b;
-    }
-    double t = (now - last) * spb;
-    if (t >= 0 && t < 0.25) hop = 1 + (int)(t / 0.25 * 255);
-  }
+  double t = snd_bah(-0.03);
+  hop = t >= 0 && t < 0.25 ? 1 + (int)(t / 0.25 * 255) : 0;
 }
 
 int main(int argc, char **argv) {

@@ -19,7 +19,7 @@ ART.mkdir(exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='hatrick-menu-test-') as tmp:
     base = Path(tmp)
     source = (REPO / 'hatrick.c').read_text()
-    for name in ('gfx.h', 'levels.h', 'sound.h', 'audio.h', 'music.h'):
+    for name in ('gfx.h', 'levels.h', 'sound.h', 'audio.h'):
         source = source.replace(f'#include "{name}"', f'#include "{REPO / name}"')
     source = source.replace('(active ? padkeys() : 0)', '0')  # don't read the user's physical gamepad
     source = source.replace('    render();\n    XPutImage',

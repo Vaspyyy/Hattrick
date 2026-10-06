@@ -248,7 +248,9 @@ def build(t, outdir):
     for name, x in stems.items(): save_ogg(os.path.join(outdir, name + ".ogg"), x)
     meta = dict(title=t["title"], bpm=t["bpm"], beats=t["bars"] * 4, samples=L, rate=SR, stems=list(stems),
                 bah_beats=sorted(b for b, _ in bah_notes(t["chords"], t["bahs"])))
-    json.dump(meta, open(os.path.join(outdir, "loop.json"), "w"), indent=1)
+    with open(os.path.join(outdir, "music.txt"), "w") as f:   # read by the game at runtime (MODDING.md)
+        f.write(f'# {t["title"]}: {meta["beats"]} beats, {L} samples at {SR} Hz\n')
+        f.write(f'bpm {t["bpm"]:g}\nbah {" ".join(f"{b:g}" for b in meta["bah_beats"])}\n')
     # the full arrangement as one General MIDI file (sampled parts mapped to GM programs)
     gmap = {"marimba": 12, "xylo": 13, "glock": 9}
     parts = []

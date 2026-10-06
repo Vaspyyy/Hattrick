@@ -1,6 +1,6 @@
 # Hatrick movement
 
-Run `./build.sh` to build, then `./hatrick` to play. Restart the game to load a newly built executable. The game loads its music and sounds from `assets/` next to the executable (it plays silently if they are missing). `./hatrick --silent` runs without touching the speakers; `--dump out.wav` additionally records the mix.
+Run `./build.sh` to build, then `./hatrick` to play. Restart the game to load a newly built executable. The game loads its music and sounds from `assets/` next to the executable (any of them can be swapped for your own files, see [MODDING.md](MODDING.md)). `./hatrick --silent` runs without touching the speakers; `--dump out.wav` additionally records the mix.
 
 The game opens on a destination menu with the five current levels and the movement playground. Use arrows or the controller stick/D-pad to choose, then Enter, Z/Space, controller A, or Start to play. You can also hover and click a card with the mouse. Entering a destination begins a fresh run there.
 

@@ -1,7 +1,9 @@
 // Hatrick audio engine on miniaudio.
-// Music: the current theme's stems are streamed from OGG in lockstep (one shared playhead, so
-// they stay sample-locked when they loop) and each fades toward its own target gain.
+// Music: the current theme's stems are streamed in lockstep (one shared playhead, so they stay
+// sample-locked when they loop) and each fades toward its own target gain.
 // Sounds: effects and jingles are decoded into memory at startup and mixed as overlapping voices.
+// Everything is read from the assets folder at runtime, so any file can be swapped for another
+// (see MODDING.md): any of the formats in EXT, any sample rate, mono or stereo, any length.
 // The game thread talks to the audio callback through atomics, a lock-free request queue and a
 // mutex that is only held for a pointer swap when the theme changes.
 #define STB_VORBIS_HEADER_ONLY
@@ -15,11 +17,15 @@
 #include <time.h>
 #include "audio.h"
 #include "sound.h"
-#include "music.h"
 
 #define RATE 48000
 #define NVOICE 32
 #define QLEN 64
+#define MAXBAH 256
+
+static const char *const EXT[] = { "ogg", "wav", "flac", "mp3" };
+static const char *const THEME_NAME[] = { "overworld", "underground", "athletic", "finale" };
+static const char *const STEM_NAME[NSTEM] = { "lead", "bass", "perc", "bells", "fast", "arp", "bah" };
 
 static const char *const SOUND_FILE[NSOUND] = {
   "sfx/coin", "sfx/jump", "sfx/jump2", "sfx/jump3", "sfx/flip", "sfx/longjump", "sfx/spin", "sfx/roll", "sfx/dive",
@@ -30,7 +36,12 @@ static const char *const SOUND_FILE[NSOUND] = {
 
 typedef struct { float *pcm; ma_uint64 frames; } Clip;
 typedef struct { int clip; ma_uint64 pos; float l, r; } Voice;
-typedef struct { ma_decoder dec[NSTEM]; int theme; } Music;
+typedef struct {
+  ma_decoder dec[NSTEM]; int has[NSTEM];
+  int theme;
+  ma_uint64 frames, pos;                   // loop length (the longest stem) and playhead, audio thread
+  double bpm; int nbah; double bah[MAXBAH];   // from music.txt; bpm 0 = unknown (no enemy hops)
+} Music;
 
 static struct {
   int ok;
@@ -42,7 +53,7 @@ static struct {
   Voice voice[NVOICE];                     // audio thread only
   _Atomic int qw, qr; int qsound[QLEN]; float qpan[QLEN];
   Music *music;                            // swapped under lock
-  _Atomic long long playhead;              // frames into the loop, for snd_beat
+  _Atomic long long playhead;              // frames into the loop, for snd_bah
   _Atomic float target[NSTEM]; _Atomic float rate[NSTEM];
   float gain[NSTEM];                       // audio thread only
   _Atomic float master; _Atomic int muted; float out;
@@ -53,26 +64,48 @@ static struct {
 
 static double now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec / 1e9; }
 
-static int load_clip(Clip *c, const char *name) {
-  char path[1200];
-  snprintf(path, sizeof path, "%s/%s.ogg", A.dir, name);
-  ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, 2, RATE);
-  void *pcm = NULL;
-  if (ma_decode_file(path, &cfg, &c->frames, &pcm) != MA_SUCCESS) { fprintf(stderr, "hatrick: cannot load %s\n", path); return 0; }
-  c->pcm = pcm;
-  return 1;
+// Finds assets/<name>.<ext> for the first extension in EXT that exists.
+static int find(char *path, size_t size, const char *name) {
+  for (size_t i = 0; i < sizeof EXT / sizeof *EXT; i++) {
+    snprintf(path, size, "%s/%s.%s", A.dir, name, EXT[i]);
+    FILE *f = fopen(path, "rb");
+    if (f) { fclose(f); return 1; }
+  }
+  return 0;
 }
 
-// Reads exactly n frames of one stem, wrapping at the end of the loop.
-static void read_loop(ma_decoder *d, float *dst, ma_uint32 n) {
-  for (int empty = 0; n;) {
-    ma_uint64 got = 0;
-    ma_decoder_read_pcm_frames(d, dst, n, &got);
-    if (got < n && (ma_decoder_seek_to_pcm_frame(d, 0) != MA_SUCCESS || (!got && ++empty > 1))) {
-      memset(dst + got * 2, 0, (n - got) * 8); return;   // broken stem: silence instead of spinning
-    }
-    dst += got * 2; n -= (ma_uint32)got;
+static void load_clip(Clip *c, const char *name) {   // a missing or broken file just stays silent
+  char path[1200];
+  ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, 2, RATE);
+  void *pcm = NULL;
+  if (!find(path, sizeof path, name)) { fprintf(stderr, "hatrick: no sound file for %s\n", name); return; }
+  if (ma_decode_file(path, &cfg, &c->frames, &pcm) != MA_SUCCESS) { fprintf(stderr, "hatrick: cannot decode %s\n", path); c->frames = 0; return; }
+  c->pcm = pcm;
+}
+
+static ma_uint64 stem_length(ma_decoder *d) {
+  ma_uint64 n = 0;
+  if (ma_decoder_get_length_in_pcm_frames(d, &n) == MA_SUCCESS && n) return n;
+  float tmp[2 * 4096]; ma_uint64 got;   // formats without a known length: decode it once
+  while (ma_decoder_read_pcm_frames(d, tmp, 4096, &got) == MA_SUCCESS && got) n += got;
+  ma_decoder_seek_to_pcm_frame(d, 0);
+  return n;
+}
+
+// music.txt: "bpm 104" and "bah 7.5 15.5 ..." (beats from the start of the loop where the
+// enemies hop). Other lines and # comments are ignored; without the file the music just plays.
+static void read_info(Music *m, const char *path) {
+  FILE *f = fopen(path, "r");
+  char line[4096];
+  if (!f) return;
+  while (fgets(line, sizeof line, f)) {
+    char *p = line, *end;
+    while (*p == ' ' || *p == '\t') p++;
+    if (!strncmp(p, "bpm", 3)) m->bpm = strtod(p + 3, NULL);
+    else if (!strncmp(p, "bah", 3))
+      for (p += 3; m->nbah < MAXBAH; p = end) { double b = strtod(p, &end); if (end == p) break; m->bah[m->nbah++] = b; }
   }
+  fclose(f);
 }
 
 static float soft(float x) {   // transparent below 0.9, then a smooth knee instead of clipping
@@ -97,11 +130,17 @@ static void callback(ma_device *dev, void *output, const void *input, ma_uint32 
   // music: every stem advances by the same n frames
   ma_mutex_lock(&A.lock);
   if (A.music) {
+    Music *mu = A.music;
     for (ma_uint32 done = 0; done < n;) {
+      ma_uint64 left = mu->frames - mu->pos;
       ma_uint32 m = n - done > 4096 ? 4096 : n - done;
+      if (m > left) m = (ma_uint32)left;
       for (int s = 0; s < NSTEM; s++) {
         float t = atomic_load(&A.target[s]), step = atomic_load(&A.rate[s]), g = A.gain[s];
-        read_loop(&A.music->dec[s], A.buf, m);
+        if (!mu->has[s]) { A.gain[s] = t; continue; }
+        ma_uint64 got = 0;
+        ma_decoder_read_pcm_frames(&mu->dec[s], A.buf, m, &got);
+        if (got < m) memset(A.buf + got * 2, 0, (m - got) * 8);   // a shorter stem rests until the loop restarts
         if (g == 0 && t == 0) continue;
         for (ma_uint32 i = 0; i < m; i++) {
           g = g < t ? fminf(t, g + step) : fmaxf(t, g - step);
@@ -109,10 +148,13 @@ static void callback(ma_device *dev, void *output, const void *input, ma_uint32 
         }
         A.gain[s] = g;
       }
-      done += m;
+      done += m; mu->pos += m;
+      if (mu->pos >= mu->frames) {   // loop: every stem starts over together
+        mu->pos = 0;
+        for (int s = 0; s < NSTEM; s++) if (mu->has[s]) ma_decoder_seek_to_pcm_frame(&mu->dec[s], 0);
+      }
     }
-    long long frames = THEME[A.music->theme].frames;
-    atomic_store(&A.playhead, (atomic_load(&A.playhead) + n) % frames);
+    atomic_store(&A.playhead, (long long)mu->pos);
   }
   ma_mutex_unlock(&A.lock);
   // sounds
@@ -153,7 +195,7 @@ int snd_init(const char *dir, int silent, const char *dump) {
   for (int i = 0; i < NVOICE; i++) A.voice[i].clip = -1;
   for (int s = 0; s < NSTEM; s++) atomic_store(&A.rate[s], 1.0f / RATE);
   atomic_store(&A.master, 0.64f);
-  for (int i = 0; i < NSOUND; i++) if (!load_clip(&A.clip[i], SOUND_FILE[i])) return 0;
+  for (int i = 0; i < NSOUND; i++) load_clip(&A.clip[i], SOUND_FILE[i]);
   if (ma_mutex_init(&A.lock) != MA_SUCCESS) return 0;
   ma_device_config cfg = ma_device_config_init(ma_device_type_playback);
   cfg.playback.format = ma_format_f32; cfg.playback.channels = 2; cfg.sampleRate = RATE;
@@ -180,7 +222,7 @@ void snd_quit(void) {
 }
 
 void snd_play(int sound, float pan) {
-  if (!A.ok || sound < 0 || sound >= NSOUND) return;
+  if (!A.ok || sound < 0 || sound >= NSOUND || !A.clip[sound].frames) return;
   int w = atomic_load(&A.qw), next = (w + 1) % QLEN;
   if (next == atomic_load(&A.qr)) return;   // queue full: drop
   A.qsound[w] = sound; A.qpan[w] = pan;
@@ -191,25 +233,32 @@ void snd_play(int sound, float pan) {
 void snd_theme(int theme, int restart) {
   if (!A.ok) return;
   if (A.music && A.music->theme == theme && !restart) return;
-  if (A.log) fprintf(stderr, "%.3f theme %s\n", now() - A.t0, THEME[theme].name);
+  if (A.log) fprintf(stderr, "%.3f theme %s\n", now() - A.t0, THEME_NAME[theme]);
   Music *m = calloc(1, sizeof *m);
   m->theme = theme;
-  for (int s = 0; s < NSTEM; s++) {
-    char path[1200];
-    snprintf(path, sizeof path, "%s/music/%s/%s.ogg", A.dir, THEME[theme].name, STEM_NAME[s]);
+  char path[1200], name[256];
+  for (int s = 0; s < NSTEM; s++) {   // any stem may be missing; it is simply silent
+    snprintf(name, sizeof name, "music/%s/%s", THEME_NAME[theme], STEM_NAME[s]);
+    if (!find(path, sizeof path, name)) continue;
     ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, 2, RATE);
-    if (ma_decoder_init_file(path, &cfg, &m->dec[s]) != MA_SUCCESS) {
-      fprintf(stderr, "hatrick: cannot open %s\n", path);
-      for (int j = 0; j < s; j++) ma_decoder_uninit(&m->dec[j]);
-      free(m); return;
-    }
+    if (ma_decoder_init_file(path, &cfg, &m->dec[s]) != MA_SUCCESS) { fprintf(stderr, "hatrick: cannot decode %s\n", path); continue; }
+    m->has[s] = 1;
+    ma_uint64 n = stem_length(&m->dec[s]);
+    if (n > m->frames) m->frames = n;
+  }
+  snprintf(path, sizeof path, "%s/music/%s/music.txt", A.dir, THEME_NAME[theme]);
+  read_info(m, path);
+  if (!m->frames) {   // no playable stems: no music for this theme
+    fprintf(stderr, "hatrick: no music in %s/music/%s\n", A.dir, THEME_NAME[theme]);
+    for (int s = 0; s < NSTEM; s++) if (m->has[s]) ma_decoder_uninit(&m->dec[s]);
+    free(m); m = NULL;
   }
   ma_mutex_lock(&A.lock);
   Music *old = A.music;
   A.music = m; atomic_store(&A.playhead, 0);
   for (int s = 0; s < NSTEM; s++) A.gain[s] = 0;   // every (re)start fades in from silence
   ma_mutex_unlock(&A.lock);
-  if (old) { for (int s = 0; s < NSTEM; s++) ma_decoder_uninit(&old->dec[s]); free(old); }
+  if (old) { for (int s = 0; s < NSTEM; s++) if (old->has[s]) ma_decoder_uninit(&old->dec[s]); free(old); }
 }
 
 void snd_stem(int stem, float gain, int ms) {
@@ -222,8 +271,15 @@ void snd_volume(float master, int muted) {
   atomic_store(&A.master, master); atomic_store(&A.muted, muted);
 }
 
-double snd_beat(void) {
-  if (!A.ok || !A.music) return -1;
-  int t = A.music->theme;
-  return (double)atomic_load(&A.playhead) / THEME[t].frames * THEME[t].beats;
+double snd_bah(double ahead) {
+  Music *m = A.music;   // only the game thread swaps it
+  if (!A.ok || !m || m->bpm <= 0 || !m->nbah) return -1;
+  double spb = 60.0 / m->bpm, sec = (double)atomic_load(&A.playhead) / RATE + ahead, loop = (double)m->frames / RATE;
+  double last = -1e9;
+  for (int i = 0; i < m->nbah; i++) {
+    double t = m->bah[i] * spb;
+    if (t > sec) t -= loop;   // wraps around the loop
+    if (t > last) last = t;
+  }
+  return sec - last;
 }

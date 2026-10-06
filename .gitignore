@@ -10,4 +10,3 @@ __pycache__/
 /assets/preview/
 /audio.o
 /vendor/miniaudio.o
-/music.h
