@@ -8,3 +8,6 @@ __pycache__/
 /assets/instruments/
 # listening previews (regenerate with: python3 audio/build.py preview)
 /assets/preview/
+/audio.o
+/vendor/miniaudio.o
+/music.h

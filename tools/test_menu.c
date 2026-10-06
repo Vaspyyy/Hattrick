@@ -58,8 +58,8 @@ int main(void) {
     CHECK(menuhit(cx,cy)==i && menuhit(cx+65,cy+26)==i);
     CHECK(menuhit(cx+66,cy+10)==-1 && menuhit(cx+10,cy+27)==-1);
   }
-  fresh();static u8 sound[3];shm=sound;tick(128);CHECK(sound[2]==1);
-  tick(128);CHECK(sound[2]==1);tick(0);tick(128);CHECK(!sound[2]);shm=0;
+  fresh();muted=0;tick(128);CHECK(muted==1);
+  tick(128);CHECK(muted==1);tick(0);tick(128);CHECK(!muted);
   x=hx;y=hy;time=tim;render();CHECK(menu && hx==x && hy==y && tim==time); // drawing does not touch the gameplay position
   printf("PASS: %d menu checks\n",checks);
 }

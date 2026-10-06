@@ -113,11 +113,46 @@ def skid():
     s = band(noise(0.3, 31), 1400, 900, 600) * (0.6 + 0.4 * np.sign(np.sin(2 * np.pi * 40 * t))) * env(0.3, 0.01, 0.12)
     return fadeout(mix((0, stereo(s), 1.0)))
 
+def roll():   # a tumbling, woody rumble
+    t = t_axis(0.32)
+    r = band(noise(0.32, 37), 260, 520, 260) * (0.55 + 0.45 * np.sin(2 * np.pi * 17 * t)) * env(0.32, 0.01, 0.12)
+    return fadeout(mix((0, stereo(r), 1.0), (0, sample("loglo", 55, 0.8, 0.2), 0.6), (0.09, sample("loglo", 52, 0.6, 0.2), 0.4)))
+
+def spin():   # twirl: rising fluttering whoosh with a tiny bell on top
+    t = t_axis(0.3)
+    w = band(noise(0.3, 41), 700, 2600, 800) * (0.5 + 0.5 * np.sin(2 * np.pi * 38 * t)) * env(0.3, 0.03, 0.11)
+    return fadeout(mix((0, stereo(w), 1.0), (0.04, sample("glock", 96, 0.5, 0.25), 0.35)))
+
+def longjump():   # low woody push-off plus a long airy swoosh
+    w = band(noise(0.4, 43), 450, 1900, 700) * env(0.4, 0.02, 0.15)
+    return fadeout(mix((0, bend(sample("loglo", 60, 0.9, 0.25), 0.9, 1.25, 0.12), 0.8), (0.01, stereo(w), 0.8)))
+
+def flip():   # backflip / side flip: springy wood, a spin swish and two sparkles
+    t = t_axis(0.35)
+    w = band(noise(0.35, 47), 900, 2200, 700) * (0.5 + 0.5 * np.sin(2 * np.pi * 26 * t)) * env(0.35, 0.03, 0.12)
+    return fadeout(mix((0, jump(1), 0.9), (0.03, stereo(w), 0.6), (0.12, sample("glock", 91, 0.5, 0.2), 0.35),
+                       (0.17, sample("glock", 96, 0.5, 0.2), 0.3)))
+
+def ledge():   # grabbing a ledge: a soft knock and a cloth rustle
+    rustle = band(noise(0.09, 53), 1500, 700, 600) * env(0.09, 0.003, 0.025)
+    return fadeout(mix((0, sample("claves", 55, 0.5), 0.6), (0, stereo(rustle), 0.5)))
+
+def menu_move(): return fadeout(mix((0, sample("marimba", 79, 0.7, 0.12), 1.0)))
+def menu_ok():
+    return fadeout(mix((0, sample("marimba", 72, 0.9, 0.12), 0.9), (0.07, sample("marimba", 79, 0.9, 0.15), 0.9),
+                       (0.07, sample("glock", 96, 0.7, 0.4), 0.5)))
+def menu_back(): return fadeout(mix((0, sample("marimba", 79, 0.8, 0.12), 0.9), (0.07, sample("marimba", 72, 0.8, 0.15), 0.9)))
+def pause():
+    return fadeout(mix(*[(i * 0.03, sample("marimba", p, 0.8, 0.3), 0.7) for i, p in enumerate((72, 76, 79))],
+                       (0.09, sample("glock", 91, 0.5, 0.5), 0.4)))
+
 # name -> (function, loudness relative to the others)
 SFX = {"coin": (coin, 0.55), "jump": (jump, 0.6), "jump2": (lambda: jump(1), 0.62), "jump3": (lambda: jump(2), 0.65),
        "stomp": (stomp, 0.8), "cap_throw": (cap_throw, 0.5), "cap_catch": (cap_catch, 0.5), "cap_bounce": (cap_bounce, 0.6),
        "dive": (dive, 0.55), "gp_spin": (gp_spin, 0.45), "gp_land": (gp_land, 0.85), "brick": (brick, 0.7),
-       "spring": (spring, 0.6), "wall_jump": (wall_jump, 0.6), "land": (land, 0.35), "skid": (skid, 0.4)}
+       "spring": (spring, 0.6), "wall_jump": (wall_jump, 0.6), "land": (land, 0.35), "skid": (skid, 0.4),
+       "roll": (roll, 0.5), "spin": (spin, 0.45), "longjump": (longjump, 0.6), "flip": (flip, 0.62), "ledge": (ledge, 0.4),
+       "menu_move": (menu_move, 0.4), "menu_ok": (menu_ok, 0.5), "menu_back": (menu_back, 0.45), "pause": (pause, 0.45)}
 
 def build_all(outdir):
     out = {}

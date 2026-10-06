@@ -1,6 +1,6 @@
 # Hatrick movement
 
-Run `./build.sh` to build, then `./hatrick` to play. Restart the game to load a newly built executable.
+Run `./build.sh` to build, then `./hatrick` to play. Restart the game to load a newly built executable. The game loads its music and sounds from `assets/` next to the executable (it plays silently if they are missing). `./hatrick --silent` runs without touching the speakers; `--dump out.wav` additionally records the mix.
 
 The game opens on a destination menu with the five current levels and the movement playground. Use arrows or the controller stick/D-pad to choose, then Enter, Z/Space, controller A, or Start to play. You can also hover and click a card with the mouse. Entering a destination begins a fresh run there.
 
@@ -38,6 +38,7 @@ During play, Esc or controller Start opens the menu and pauses the entire level.
 | Movement playground | F1 opens ramps, ledges, and a low tunnel; F1 again returns to the first campaign level |
 | Destination menu / resume | Esc; X or C also resumes from the menu |
 | Restart / mute / quit | R / M / Q |
+| Volume | + / − (or keypad + / −), ten steps |
 
 Hold Down when a dive or long jump lands to flow into a roll. A spinning ground pound starts a faster roll. Spin jumps use low gravity on both ascent and descent. An air catch twirl gives a small upward pop and recharges the next throw's stall once per airborne cycle. Ground spins last up to 90 frames and allow a moving spin throw. Ground cap vaults launch higher than airborne cap bounces. Crouching and rolling shrink the collision box, and releasing Down under a low ceiling keeps the character tucked until there is room to stand.
 
@@ -50,5 +51,7 @@ The cap stays out while its throw button is held. Pressing X shortly before a re
 On controllers, A/B jumps, X/Y throws, shoulders/triggers crouch, and the left stick or D-pad supplies directions. Start opens the menu; inside it, A/Start selects and B goes back. Use the second cap button (Y) for the downward throw. Horizontal stick position controls walking/running speed. The same direction combinations apply to spin jumps and upward throws.
 
 Focused movement checks: `gcc -O1 -w tools/test_movement.c -o /tmp/hatrick-movement-tests && /tmp/hatrick-movement-tests`. Recorded level routes are a separate optional `--routes` check; changing movement requires retiming those recordings.
+
+Audio check (private Xvfb, records the mix through the silent device): `python3 tools/test_audio.py`.
 
 Focused menu checks: `gcc -O1 -w tools/test_menu.c -o /tmp/hatrick-menu-tests && /tmp/hatrick-menu-tests`. Native keyboard/mouse menu playtest and screenshot capture: `python3 tools/test_menu_native.py`.

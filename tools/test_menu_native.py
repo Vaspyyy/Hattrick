@@ -19,22 +19,17 @@ ART.mkdir(exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='hatrick-menu-test-') as tmp:
     base = Path(tmp)
     source = (REPO / 'hatrick.c').read_text()
-    for name in ('gfx.h', 'levels.h'):
+    for name in ('gfx.h', 'levels.h', 'sound.h', 'audio.h', 'music.h'):
         source = source.replace(f'#include "{name}"', f'#include "{REPO / name}"')
-    source = source.replace('  audio(envp);', '  audio(envp); if (shm) shm[2] = 1;')
     source = source.replace('(active ? padkeys() : 0)', '0')  # don't read the user's physical gamepad
     source = source.replace('    render();\n    XPutImage',
-        '    { int tr[] = { menu, menusel, resumable, quitting, lvl, hx, hy, hvx, hvy, st, gnd, prevk, tim }; sc(4, 1, (int)tr, sizeof tr); }\n    render();\n    XPutImage')
+        '    { int tr[] = { menu, menusel, resumable, quitting, lvl, hx, hy, hvx, hvy, st, gnd, prevk, tim }; fwrite(tr, sizeof tr, 1, stdout); fflush(stdout); }\n    render();\n    XPutImage')
     (base / 'menu-test.c').write_text(source)
     binary = base / 'menu-test'
-    subprocess.run([
-        'gcc', '-m32', '-O2', '-fomit-frame-pointer', '-fno-tree-loop-distribute-patterns',
-        '-nostartfiles', '-nostdlib', '-fno-pic', '-no-pie', '-fno-plt',
-        '-fno-asynchronous-unwind-tables', '-fno-stack-protector', '-fcf-protection=none',
-        '-Wl,-T,' + str(REPO / 'tiny.ld'), '-Wl,--build-id=none', '-Wl,-z,norelro',
-        '-Wl,--no-warn-rwx-segments', str(base / 'menu-test.c'), '-o', str(binary),
-        '-L/usr/lib32', '-lX11',
-    ], check=True)
+    subprocess.run(['gcc', '-O2', '-w', str(base / 'menu-test.c'), str(REPO / 'audio.o'),
+                    str(REPO / 'vendor' / 'miniaudio.o'), '-o', str(binary), '-lX11', '-lm', '-lpthread', '-ldl'],
+                   check=True)
+    (base / 'assets').symlink_to(REPO / 'assets')   # the audio engine runs, on its silent null device
     readfd, writefd = os.pipe()
     xvfb = subprocess.Popen(['Xvfb', '-displayfd', str(writefd), '-screen', '0',
                             '1024x576x24', '-nolisten', 'tcp'], pass_fds=(writefd,),
@@ -47,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix='hatrick-menu-test-') as tmp:
     connection = None
     try:
         with (base / 'trace').open('wb') as out:
-            game = subprocess.Popen([str(binary)], cwd=base, env=env, stdout=out,
+            game = subprocess.Popen([str(binary), '--silent'], cwd=base, env=env, stdout=out,
                                     stderr=subprocess.DEVNULL)
             time.sleep(.55)
             window = subprocess.check_output(['xdotool', 'search', '--name', '^Hatrick$'],
