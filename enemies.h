@@ -134,6 +134,35 @@ static void extspawn(int r, int x, int y, int c) {
   #undef EMPTY
 }
 
+// Stacks: walkers, crabs, shy-walkers and shell walkers (a resting shell too) land on each other's
+// heads and ride along, so a stack walks and turns with its bottom enemy. Knock one out and the ones
+// above drop down. Runs after every enemy has moved; x0 holds where the first n0 started the frame.
+static int estackable(const E *e) {
+  return e->a && e->r == room && (e->t == 1 || e->t == E_CRAB || e->t == T_SHY || (e->t == T_SHELL && e->s < 2));
+}
+static void estack(const int *x0, int n0) {
+  static E *s[MAXEN]; int n = 0;
+  for (E *e = en; e < en+ne; e++) if (estackable(e)) {   // lowest first, so a rider's base has settled
+    int i = n++; while (i > 0 && s[i-1]->y < e->y) s[i] = s[i-1], i--; s[i] = e;
+  }
+  for (int i = 1; i < n; i++) {
+    E *e = s[i]; if (e->vy <= 0) continue;   // on the ground, or on the way up
+    int bot = e->y + (8 << 8), was = bot - e->vy;
+    for (int j = 0; j < i; j++) {
+      E *o = s[j];
+      if (iabs(o->x - e->x) >= 6 << 8 || bot + (2 << 8) < o->y || was > o->y + (2 << 8) + (o->vy > 0 ? o->vy : 0)) continue;
+      int ie = e - en, io = o - en, nx = (ie < n0 ? x0[ie] : e->x) + (io < n0 ? o->x - x0[io] : 0), ny = o->y - (8 << 8);
+      nx += (o->x - nx) / 8;   // and eased onto the middle of its base
+      if (!scan(nx >> 8, ny >> 8, 8, 8, SOLID)) {   // carried along, unless that runs it into a wall
+        e->x = nx;
+        if (e->t != T_SHY && !(e->t == T_SHELL && e->s) && o->vx) e->vx = o->vx;   // a shy-walker keeps its own facing
+      }
+      e->y = ny; e->vy = 0;
+      break;
+    }
+  }
+}
+
 // Standing on a thwomp (called by hero() when no tile holds Hatrick up).
 static int extride(void) {
   int X = hx >> 8, Y = hy >> 8;
