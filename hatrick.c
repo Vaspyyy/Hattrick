@@ -793,6 +793,7 @@ static void hero(int k, int pr) {
     if (dir) { hvx += axis*AACC/256; if (iabs(hvx) > target) hvx = (hvx > 0 ? 1 : -1)*target; face = dir; }
     if (jbuf && coy < 6) { jbuf = 0; st = SPINJ; hvy = -560; cut = launch = 0; gnd = 0; coy = 99; jn = -1; takeoff = 1; sfx(S_SPIN); }
     else if (++stt >= 90 || D || !gnd) st = NORM;
+  } else if (st == SLIDE && mv_slidetick(dir)) {   // the slope slide (movement.h)
   } else if (st == SLIDE) {
     posture(5);
     if (gnd && D) roll(iabs(hvx) > ROLLSTART ? iabs(hvx) : ROLLSTART);
@@ -948,7 +949,8 @@ static void hero(int k, int pr) {
     capok = diveok = stall = catchok = 1; throwt = twirl = 0;
     if (!was) {
       landt = 0;
-      if (st == GPSLAM) {
+      if (st == GPSLAM && mv_slopepound()) ;   // on a slope: the slope slide (movement.h)
+      else if (st == GPSLAM) {
         st = GPLAND; stt = 0; poundt = 31; kick(10); sfx(S_GPLAND); rumble(6);
         if (rollbuf) roll(gpspin ? MAXV*30/14 : ROLLSTART);
       } else if ((st == DIVE || st == LONGJ) && D) roll(iabs(hvx) > ROLLSTART ? iabs(hvx) : ROLLSTART);
@@ -1033,6 +1035,7 @@ static void kill(E *e) { e->a = 0; burst((e->x >> 8)+4, (e->y >> 8)+4, 0x9a48d0,
 
 static void enemies(int k) {
   int X = hx >> 8, Y = hy >> 8;
+  mv_slidehits();   // the slope slide runs enemies over (movement.h)
   for (E *e = en; e < en+ne; e++) {
     if (!e->a || e->r != room) continue;
     if (e->t >= T_SHY && e->t <= T_PISTON) { extenemy(e, k); continue; }

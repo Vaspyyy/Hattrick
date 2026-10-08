@@ -1,5 +1,5 @@
 // Checks for the movement additions in movement.h: ice, conveyors, water, swing poles, wall
-// slides and the flutter, against the real game simulation on the flat lab level.
+// slides, the flutter and the slope slide, against the real game simulation on the flat lab level.
 // Run: gcc -O1 -w tools/test_moves.c -o /tmp/hatrick-moves-tests && /tmp/hatrick-moves-tests
 #define SIM
 #define SC 1
@@ -151,8 +151,42 @@ static void flutter(void) {
   tick(16); CHECK(!mv_flut);                             // no twirl, no flutter
 }
 
+// The slope slide, on the playground's ramp down (x 350..410) to the flat floor at y 229.
+static void poundat(int x) {
+  lvl = PLAY; load(); prevk = 0;
+  for (int i = 0; i < 10; i++) tick(0);
+  hx = x << 8; hy = 150 << 8; gnd = 0; hvx = hvy = 0; coy = 99; st = NORM;
+  tick(0); tick(8);
+  for (int i = 0; i < 40 && !gnd; i++) tick(0);
+}
+static void slopeslide(void) {
+  poundat(350); CHECK(st == SLIDE && mv_slide && hvx == MAXV && duck == 5);   // a pound on the slope slides
+  int v = hvx; tick(0); CHECK(hvx > v && st == SLIDE);                         // faster going down
+  int top = 0, frames = 0;
+  while (st == SLIDE && frames < 400) { tick(0); frames++; if (hvx > top) top = hvx; }
+  CHECK(top > 800 && top <= ROLLMAX && st == NORM && !mv_slide && gnd && hx > 420 << 8);   // carries on, then stops
+  poundat(300); CHECK(st == GPLAND && !mv_slide);                              // flat ground: a plain pound
+  poundat(350); for (int i = 0; i < 10; i++) tick(0);
+  v = hvx; tick(16); CHECK(st == NORM && !gnd && hvy < 0 && hvx >= v - MV_SLIDEDRAG && !mv_slide);   // leaps out fast
+  poundat(350); for (int i = 0; i < 10; i++) tick(1);
+  int lean = hvx; poundat(350); for (int i = 0; i < 10; i++) tick(0);
+  CHECK(lean < hvx);                                                           // holding back brakes
+  poundat(350); tick(8|32); CHECK(st == ROLL); tick(8); CHECK(!mv_slide);                  // crouch + cap rolls instead
+  // Enemies in the way are run over, more points for each in a row.
+  poundat(350);
+  ne = 0; en[ne++] = (E){ 440 << 8, 221 << 8, -170, 0, 1, 1, 221 << 8, 0 };
+  en[ne++] = (E){ 470 << 8, 221 << 8, -170, 0, 1, 1, 221 << 8, 0 };
+  int sc = score;
+  for (int i = 0; i < 120 && st == SLIDE; i++) tick(0);
+  CHECK(!en[0].a && !en[1].a && st != DEAD && score - sc == 200 + 400);
+  // Without the slide the same walker hurts.
+  poundat(300); ne = 0; en[ne++] = (E){ 330 << 8, 221 << 8, -170, 0, 1, 1, 221 << 8, 0 };
+  for (int i = 0; i < 60 && st != DEAD; i++) tick(0);
+  CHECK(st == DEAD);
+}
+
 int main(int argc, char **argv) {
-  ice(); conveyors(); water(); poles(); wallslide(); flutter();
-  printf("PASS: %d checks for ice, conveyors, water, swing poles, wall slides and the flutter\n", checks);
+  ice(); conveyors(); water(); poles(); wallslide(); flutter(); slopeslide();
+  printf("PASS: %d checks for ice, conveyors, water, swing poles, wall slides, the flutter and the slope slide\n", checks);
   return 0;
 }
