@@ -121,10 +121,12 @@ int main(void) {
   { int n = 0, thrown = 0; while (b->s != 3 && n++ < 3000) { run(0, 1); for (BShot *s = bsh; s < bsh+24; s++) thrown |= s->a && s->kind == BS_SCISSORS; if (st == DEAD) place((b->ax0 + 2)*8, b->my*8 - 3); }
     CHECK(thrown && b->s == 3); }
   stomp(b, 5, -7); CHECK(b->hp == 2);
-  for (int i = 0; i < 2; i++) {
-    int n = 0; while (b->s != 3 && n++ < 3000) { place((b->ax0 + 2)*8, b->my*8 - 60); run(0, 1); for (BShot *s = bsh; s < bsh+24; s++) s->a = 0; }
+  for (int i = 0, tries = 0; i < 2 && tries < 6; tries++) {   // a stomp can glance off while he hops: try again on his next pant
+    int n = 0, hp = b->hp; while (b->s != 3 && n++ < 3000) { place((b->ax0 + 2)*8, b->my*8 - 60); run(0, 1); for (BShot *s = bsh; s < bsh+24; s++) s->a = 0; }
     CHECK(b->s == 3);
     stomp(b, 5, -7);
+    if (b->hp != hp || b->phase == 2) i++;
+    else { n = 0; while (b->s == 3 && n++ < 300) { place((b->ax0 + 2)*8, b->my*8 - 60); run(0, 1); } }
   }
   CHECK(b->phase == 2 && b->hp == 3 && hatst == 1);
   for (int i = 0; i < 3; i++) {
