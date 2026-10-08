@@ -492,7 +492,20 @@ static void dust(int x, int y, int dir, int n) {   // soft puffs at the feet, x,
 #define SPIN(n, d) (spin = spinlen = (n), spind = (d))   // flip animation: length, direction
 #include "cap.h"   // cap posts, cap switches, hat swap and the rest of the cap ideas
 static int dieforce;   // doom(): a kill no hat power can soak up
-static void die(void) { if (!dieforce && capx_absorb()) return; if (st < TUBE) { st = DEAD; stt = 0; hvy = -900; hvx = 0; deaths++; sfx(S_DEATH); rumble(7); kick(9); } }
+// Hearts, like Odyssey: a hit costs one and Hatrick blinks for a moment; the last one lost is a death.
+// Touching a checkpoint fills them again, and every (re)spawn starts full.
+#define MAXHP 3
+static int hp = MAXHP, hpt, healt;   // hpt: frames since a heart was lost (it jumps on the HUD); healt: a refill's glow
+static int hurt(void) {   // die() asks after the hat power: a spare heart takes the hit. Pits and the timer always count.
+  if ((hy >> 8) > lh*8 || !left || hp <= 1) return 0;
+  hp--; hpt = 0; capx_inv = 90; if (hvy > -600) hvy = -600;
+  burst((hx >> 8)+3, (hy >> 8)+2, 0xff4a5a, 10); sfx(S_BOUNCE); rumble(5); kick(6);
+  return 1;
+}
+static void die(void) {
+  if (!dieforce && (capx_absorb() || (st < TUBE && hurt()))) return;
+  if (st < TUBE) { st = DEAD; stt = 0; hvy = -900; hvx = 0; hp = 0; hpt = 0; deaths++; sfx(S_DEATH); rumble(7); kick(9); }
+}
 static void doom(void) { dieforce = 1; die(); dieforce = 0; }   // lava, rising lines, avalanches, quicksand, squeezes
 static void pop(int x, int y, int v) {
   Pop *p = pops; for (Pop *q = pops; q < pops+12; q++) if (q->t < p->t) p = q;
@@ -544,6 +557,7 @@ static void spawn(int r, int x, int y) {
   arcg = GRAV; runt = rundir = launch = boostt = capbuf = capkeys = capextend = capreflect = 0;
   ledget = climbx = climby = slopedir = poundt = 0;
   mv_reset();
+  hp = MAXHP; hpt = 99; healt = 0;
   loads++;
   bossstart();
   capx_reset();
@@ -1094,6 +1108,8 @@ static int dwellerhit(const Dweller *d, const Home *h, int x, int y, int w, int 
 static void hazards(void) {
   const Level *L = LV + lvl;
   int X = hx >> 8, Y = (hy >> 8) + duck, hh = 11 - duck, alive = st < TUBE, capon = cst && cst < 3;
+  if (hpt < 99) hpt++;
+  if (healt) healt--;
   for (int i = 0; i < L->nmoon; i++)   // moon coins: a 10 px box around each
     if (L->moon[i].room == room && alive && !(wd.moongot >> i & 1) && ov(X, Y, 6, hh, L->moon[i].x*8-1, L->moon[i].y*8-1, 10, 10)) {
       wd.moongot |= 1 << i; sfx(S_MOON); rumble(3);
@@ -1102,10 +1118,16 @@ static void hazards(void) {
     }
   for (Check *c = wd.ck; c < wd.ck + wd.nck; c++) {
     if (c->up && c->up < 20) c->up++;
-    if (c->room == room && alive && !c->up && ov(X, Y, 6, hh, c->x*8+1, c->y*8-8, 6, 16)) {
-      haveck = 1; ckroom = room; ckx = (c->x*8+1) << 8; cky = (c->y*8-3) << 8;
-      c->up = 20; saved = wd; savedcoins = coins; savedscore = score;   // the respawn snapshot has it raised
-      c->up = 1; sfx(S_CHECK);
+    if (c->room == room && alive && ov(X, Y, 6, hh, c->x*8+1, c->y*8-8, 6, 16)) {
+      if (!c->up) {
+        haveck = 1; ckroom = room; ckx = (c->x*8+1) << 8; cky = (c->y*8-3) << 8;
+        c->up = 20; saved = wd; savedcoins = coins; savedscore = score;   // the respawn snapshot has it raised
+        c->up = 1; sfx(S_CHECK);
+      }
+      if (hp < MAXHP) {   // any checkpoint, new or already raised, fills the hearts
+        if (c->up > 1) sfx(S_CHECK);
+        hp = MAXHP; healt = 24; sparkle(X+3, Y+2, 0xff7a8a, 10);
+      }
     }
   }
   for (const Bar *b = L->bar; b < L->bar + L->nbar; b++) {
@@ -1566,6 +1588,19 @@ static void hudtext(const char *s,int x,int y,u32 c) {   // bold menu type with 
   for(int dy=-3;dy<=4;dy++)for(int dx=-3;dx<=4;dx++)
     if((dx<0?-dx:dx>1?dx-1:0)+(dy<0?-dy:dy>1?dy-1:0)>=2&&(dx<0?-dx:dx>1?dx-1:0)+(dy<0?-dy:dy>1?dy-1:0)<=3)menutext(s,x+dx,y+dy,1,0x14100c);
   for(int i=0;i<4;i++)menutext(s,x+(i&1),y+(i>>1),1,c);
+}
+// One of the hearts under the clock (menu canvas px, cx, cy its middle). full: still there. fx > 0:
+// frames since this one was lost (it jumps and flashes white); -1: just refilled (a pink glow).
+static void hudheart(int cx, int cy, int full, int fx) {
+  if (fx > 0) cy -= (24 - fx) * (fx < 8 ? fx : 8) / 24, cx += fx < 12 && fx & 2 ? 2 : 0;
+  u32 fill = fx > 0 && fx < 10 ? 0xffffff : full ? (hp == 1 && fr & 32 ? 0xff7080 : 0xf0303e) : 0x4a3a46;
+  for (int pass = 0; pass < 2; pass++) {   // a dark outline, then the fill
+    int g = pass ? 0 : 3; u32 c = pass ? fill : 0x14100c;
+    mellipse(cx-6, cy-4, 7+g, 7+g, c); mellipse(cx+6, cy-4, 7+g, 7+g, c);
+    for (int y = -4; y <= 11+g; y++) { int w = (13+g) * (11+g - y) / (15+g); if (w > 0) mrect(cx-w, cy+y, 2*w, 1, c); }
+  }
+  if (full) mellipse(cx-7, cy-6, 2, 3, fx < 0 ? 0xffffff : 0xffb0b8);   // a shine
+  if (fx < 0 && fr & 4) mellipse(cx, cy, 3, 3, 0xffd0d8);
 }
 static void mhat(int x,int y) {
   mround(x+3,y,20,10,4,0x733431);mround(x+4,y+1,18,8,3,0xf07b35);
@@ -2166,6 +2201,7 @@ static void render(void) {
     mellipse(670, 37, 14, 14, 0x14100c); mellipse(670, 37, 12, 12, c);                                         // the clock
     for (int o = -1; o <= 0; o++) { mline(670+o, 37, 670+o, 28, 0x14100c); mline(670, 37+o, 678, 37+o, 0x14100c); }
     snprintf(t, sizeof t, "%03d", (left + 59) / 60); hudtext(t, 692, 26, c);
+    for (int i = 0; i < MAXHP; i++) hudheart(672 + i*30, 72, i < hp, i == hp && hpt < 24 ? hpt : i < hp && healt ? -1 : 0);
   }
   if (done) {   // the run is over: its time and score, big
     int s = 2, x = 84, yy = 52;

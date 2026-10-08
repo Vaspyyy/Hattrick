@@ -62,7 +62,7 @@ int main(void) {
   CHECK(!s->a && st == NORM);
   use(FLAT); settle(); place(40, 229);
   s = ADD(T_SHY, 52, 232); s->vx = -100;  // walking at Hatrick: that hurts
-  run(0, 20); CHECK(st == DEAD && s->a);
+  run(0, 20); CHECK(st != DEAD && hp == MAXHP-1 && capx_inv && s->a);
 
   // ---- shell walker: stomp it, kick the shell, and the shell knocks a walker over
   use(FLAT); settle();
@@ -166,8 +166,8 @@ int main(void) {
       "#############################\n"
       "#############################\n");
   settle(); place(13*8-30, 229);
-  for (int i = 0; i < 90 && st != DEAD; i++) run(0, 1);
-  CHECK(st == DEAD);   // it got Hatrick
+  for (int i = 0; i < 90 && hp == MAXHP; i++) run(0, 1);
+  CHECK(hp == MAXHP-1);   // it got Hatrick
 
   // ---- puffer: the cap puffs it up, then it's a trampoline
   use(FLAT); settle(); place(40, 229); face = 1;
@@ -183,8 +183,8 @@ int main(void) {
   use(FLAT); settle(); place(100, 229);
   E *q = ADD(T_THWOMP, 96, 150);
   run(0, 1); CHECK(q->s == 1);
-  for (int i = 0; i < 60 && st != DEAD; i++) run(0, 1);
-  CHECK(st == DEAD);
+  for (int i = 0; i < 60 && hp == MAXHP; i++) run(0, 1);
+  CHECK(hp == MAXHP-1);
   use(FLAT); settle(); place(130, 229);
   q = ADD(T_THWOMP, 96, 150); q->y = 224 << 8; q->s = 2; q->u = 5;   // sitting on the ground
   place(100, 200); run(0, 20);
@@ -212,8 +212,8 @@ int main(void) {
   for (int i = 0; i < 120; i++) { run(0, 1); if (pz->s) out++; else in++; CHECK(pz->s == ((beatpos() >> 8 & 1) && (beatpos() & 255) < 170)); }
   CHECK(out > 10 && in > 10);
   place(18*8+1, 28*8-11+3);
-  for (int i = 0; i < 120 && st != DEAD; i++) { hy = (28*8-11+3) << 8; hvy = 0; run(0, 1); }
-  CHECK(st == DEAD);
+  for (int i = 0; i < 120 && hp == MAXHP; i++) { hy = (28*8-11+3) << 8; hvy = 0; run(0, 1); }
+  CHECK(hp == MAXHP-1);
   const Bar *bar = LV[0].bar; int a0 = barangle(bar), changes = 0, last = a0;
   for (int i = 0; i < 300; i++) { fr++; int a = barangle(bar); if (a != last) changes++; last = a; }
   CHECK(changes > 0 && changes < 300);   // holds still between beats
