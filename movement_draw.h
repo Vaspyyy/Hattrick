@@ -69,6 +69,9 @@ static void mv_pose(const u16 **f, int *fl, int *ang, int *sx, int *fx, int *fy)
   } else if (mv_swim && !gnd) {
     *f = mv_stroke > 6 ? HTHROW : HJUMP;
     *ang = hvx / 24 + (hvy > 0 ? 6 : -6)*face;
+  } else if (mv_slide && st == SLIDE) {   // the slope slide: sitting, tipped back along the slope
+    *f = HCROUCH; *ang = gnd ? -slopedir*24 : 0;
+    if (!(fr & 1)) dust(hx + (3 << 8) - face*(2 << 8), hy + (11 << 8), -face, 1);
   } else if (mv_flut || capx_flut) {   // either flutter: the legs paddle
     *f = fr >> 1 & 1 ? HRUN1 : HRUN2;
   }

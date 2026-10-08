@@ -40,6 +40,7 @@ During play, Esc or controller Start opens the pause screen and pauses the entir
 | Ice / conveyors | Ice (`I`) is slippery: slow to start, slow to stop. Belts (`<` `>`) carry you and add their push to a jump |
 | Drop from a ledge | Down or the opposite horizontal direction; Jump + away wall-jumps |
 | Slope roll | Down on a ramp rolls downhill; uphill slows the roll |
+| Slope slide | Ground pound onto a ramp: Hatrick slides downhill, speeds up on the way down and knocks out the enemies he hits (whatever a kicked shell knocks out; the rest still hurt). Jump leaps out with the speed, holding back brakes, Down + X or C rolls instead, and it stops by itself on flat ground |
 | Enter a tube | Down on top of a brass tube that opens up; walk into one that opens sideways; Up while jumping into one that opens down |
 | Skip the course clear | Jump during the flag celebration (it goes straight to the next level) |
 | Movement playground | F1 opens ramps, ledges, and a low tunnel; F1 again returns to the map |
