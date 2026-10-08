@@ -2,9 +2,11 @@ Replays that prove the level-design changes (Level design thread): every new lev
 and every new moon coin can be picked up and brought home. Each file reaches the flag.
 
 Replay with: ./sim LEVEL tas/proofs/FILE.tas   (add "trace" to see moons=... bits per frame)
-LEVEL is the campaign index without assets/worlds.txt (worlds levels shift the numbers after them):
-  1 tube town   2 brickworks   4 ramp rally   5 spikes   7 crumble canyon   8 sky   10 ember fort   11 hatrick
-To check with worlds.txt in place, move it aside first, or count the levels in ./sim --check order.
+LEVEL is the campaign index with assets/worlds.txt in place (./sim --check lists the order):
+  1 tube town   2 brickworks   4 ramp rally   5 spikes   7 crumble canyon   8 sky   10 ember fort   15 hatrick
+Brickworks, Spikes, Sky, Hatrick, Tube Town and Ember Fort were lengthened on 2026-10-08 (new sections built from
+the new enemies and gimmicks); their replays were re-recorded on the longer maps. sky-moons-capjump and
+sky-moons-hidden are the same replay: it picks up both coins.
 
 New levels (each with one gimmick and three moon coins):
   tube town       tubes as hurdles, stepping stones and doors; snappers and spitters; a sideways tube through a wall
