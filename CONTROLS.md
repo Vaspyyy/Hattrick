@@ -33,11 +33,18 @@ During play, Esc or controller Start opens the pause screen and pauses the entir
 | Catch jump / air catch twirl | Jump within ten frames of catching the returning cap; jumping just before the catch also buffers the action |
 | Roll cancel into cap throw | Release Down and press X or C; add Jump for a jumping roll cancel |
 | Ledge grab / climb | Hold toward an exposed ledge while falling; Up or Jump climbs |
+| Wall slide / wall kick | Hold toward a wall while falling; he keeps sliding until you push away or press Down. Jump kicks off, also a few frames after pushing away |
+| Flutter | After an air catch twirl, press Jump again once falling and hold it to hover a moment; one per twirl |
+| Swing pole | Jump into a bar (`=`) to grab it and turn around it; hold forward to swing faster, Jump lets go higher and faster the longer you swung, Down drops |
+| Swim | In water Jump strokes upward (near the surface it leaps out), Down sinks faster, Left / Right paddle. No dives or ground pounds; a thrown cap flies further |
+| Ice / conveyors | Ice (`I`) is slippery: slow to start, slow to stop. Belts (`<` `>`) carry you and add their push to a jump |
 | Drop from a ledge | Down or the opposite horizontal direction; Jump + away wall-jumps |
 | Slope roll | Down on a ramp rolls downhill; uphill slows the roll |
 | Enter a tube | Down on top of a brass tube that opens up; walk into one that opens sideways; Up while jumping into one that opens down |
 | Skip the course clear | Jump during the flag celebration (it goes straight to the next level) |
 | Movement playground | F1 opens ramps, ledges, and a low tunnel; F1 again returns to the map |
+| Gimmick gallery | F2 plays the gimmick lab levels one after another |
+| Coin rush | F3 on the map: three levels, 100 s each, coins only |
 | Pause / resume | Esc; X or C also resumes from the pause screen |
 | Restart / mute / quit | R / M / Q |
 | Volume | + / − (or keypad + / −), ten steps |
@@ -54,6 +61,8 @@ The cap stays out while its throw button is held. Pressing X shortly before a re
 
 On controllers, A/B jumps, X/Y throws, shoulders/triggers crouch, and the left stick or D-pad supplies directions. Start opens the pause screen; on it and on the map, A/Start selects and B goes back. Use the second cap button (Y) for the downward throw. Horizontal stick position controls walking/running speed. The same direction combinations apply to spin jumps and upward throws.
 
+Movement additions (ice, conveyors, water, swing poles, wall slides, flutter; the playground has a section for each before its flag): `gcc -O1 -w tools/test_moves.c -o /tmp/hatrick-moves-tests && /tmp/hatrick-moves-tests`.
+
 Focused movement checks: `gcc -O1 -w tools/test_movement.c -o /tmp/hatrick-movement-tests && /tmp/hatrick-movement-tests`. Recorded level routes are a separate optional `--routes` check; changing movement requires retiming those recordings.
 
 Audio check (private Xvfb, records the mix through the silent device): `python3 tools/test_audio.py`.
@@ -67,3 +76,9 @@ Level object checks (checkpoints, tubes and rooms, crumble and hidden blocks, fi
 Replacement-art check (exports the templates, paints some, and looks at the real game on a private Xvfb): `python3 tools/test_gfx.py`.
 
 Level proofs: `tas/1.tas` to `tas/5.tas` beat each level in the simulator, and `tas/1-bonus.tas` to `tas/5-bonus.tas` beat it again through its bonus room (`./sim 0 tas/1.tas` … `./sim 4 tas/5.tas`, or all at once with the movement checks' `--routes`). `python3 tools/route.py LEVEL out.tas [wp=X,Y[,ROOM] ...]` searches for a new one after level or movement changes.
+
+Cap mechanics (see MODDING.md, "Cap objects"): holding Up or Down while a forward throw flies bends it up or down. A cap stuck on a cap post is a platform for 2 s, and pressing a cap button while it's there pulls Hatrick to it. After the cap knocks out a walker, buzzer or spitter, Hatrick wears its power until he is hit: a stone-breaking ground pound, a flutter (press Jump while falling and hold it), or seeds lobbed with each throw.
+
+## Hatrick's house and collectibles
+
+Entering the house on the map opens Hatrick's home: a room for every level cleared (trophies, postcards, boss portraits) and the cap rack. Left/Right pick a cap, Jump (Enter, Z/Space, controller A) wears it if it is on the rack, Up shows the high-score table, and the Cap button or Esc goes back to the map. A cap joins the rack when every moon coin of its level is home. Under the map's banner each level shows its star time and whether its postcard was found; a star by the stop marks a level with all moon coins and a clear inside the star time. A red pennant is a secret exit: it opens a hidden path on the map to a secret level.

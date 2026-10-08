@@ -1,0 +1,3 @@
+# Brick Cellar: 64 beats, 1843200 samples at 48000 Hz
+bpm 100
+bah 7.5 15 23.5 31 39.5 47 55.5 63

@@ -118,7 +118,8 @@ def overworld():
         "F5:2 A5:2 D6:2 C6:2 A5:2 F5:2 E5:2 D5:2 | G5:4 r:2 B4:2 D5:2 F5:2 G5:2 r:2", 16)
     bahs = [(b, 14) for b in (1, 3, 5, 9, 11, 13, 17, 19, 21)] + [(7, 0), (15, 0), (23, 8)]
     return dict(name="overworld", title="Hilltop Bounce", bpm=104, bars=24, chords=chords, mel=mel, bahs=bahs,
-                lead=("organ", "marimba"), bass=32, arp="glock", bells="glock", kit="pop", key_lo=72, key_hi=88)
+                lead=("organ", "marimba"), bass=32, arp="glock", bells="glock", kit="pop", key_lo=72, key_hi=88,
+                motif=(14, 84, "major"))
 
 def underground():
     chords = ["Am", "Am", "Dm", "E7", "Am", "F", "Dm E7", "Am",
@@ -134,7 +135,8 @@ def underground():
         "C5:2 E5:2 A5:4 E5:2 C5:2 A4:4 | B4:2 r:2 E5:2 r:2 G#5:2 r:2 B5:4")
     bahs = [(b, 12) for b in (3, 7, 11, 15)] + [(b, 14) for b in (1, 5, 9, 13)]
     return dict(name="underground", title="Brick Cellar", bpm=100, bars=16, chords=chords, mel=mel, bahs=bahs,
-                lead=("pizz", "xylo"), bass=32, arp="xylo", bells="glock", kit="cellar", key_lo=69, key_hi=84, low_bah=True)
+                lead=("pizz", "xylo"), bass=32, arp="xylo", bells="glock", kit="cellar", key_lo=69, key_hi=84, low_bah=True,
+                motif=(14, 81, "minor"))
 
 def athletic():
     chords = ["F", "C", "Dm", "Bb", "F", "Gm7 C7", "F", "C7",
@@ -150,7 +152,8 @@ def athletic():
         "A5:2 C6:2 F6:4 E6:2 C6:2 A5:4 | G5:2 r:2 E5:2 r:2 C5:2 D5:2 E5:4")
     bahs = [(b, 14) for b in (1, 3, 5, 7, 9, 11, 13)] + [(15, 4), (15, 8)]
     return dict(name="athletic", title="Cloud Hop", bpm=110, bars=16, chords=chords, mel=mel, bahs=bahs,
-                lead=("organ", "marimba"), bass=32, arp="glock", bells="glock", kit="pop", key_lo=72, key_hi=89, son=False)
+                lead=("organ", "marimba"), bass=32, arp="glock", bells="glock", kit="pop", key_lo=72, key_hi=89, son=False,
+                motif=(14, 89, "major"))
 
 def finale():
     chords = ["Dm", "Dm", "Bb", "A7", "Dm", "Gm", "Bb A7", "Dm",
@@ -169,6 +172,20 @@ def finale():
                 lead=("organ", "xylo"), bass=33, arp="xylo", bells="glock", kit="finale", key_lo=69, key_hi=88, low_bah=True)
 
 THEMES = [overworld, underground, athletic, finale]
+
+# The Hat Trick leitmotif: the finale's opening bar, quoted in every other theme on the bells at
+# half speed (two bars from `bar`), in that theme's key and mode. (scale degree, sixteenths); None rests.
+MOTIF = [(1, 4), (None, 2), (1, 2), (3, 4), (5, 4), (4, 4), (3, 4), (2, 8)]
+DEGREE = {"major": {1: 0, 2: 2, 3: 4, 4: 5, 5: 7}, "minor": {1: 0, 2: 2, 3: 3, 4: 5, 5: 7}}
+
+def motif_notes(t, vel=0.62):
+    if "motif" not in t: return []
+    bar, tonic, mode = t["motif"]
+    out, beat = [], bar * 4.0
+    for deg, d in MOTIF:
+        if deg: out.append((beat, d / 4 * 0.9, tonic + DEGREE[mode][deg], vel))
+        beat += d / 4
+    return out
 
 # ---------- arrangement -> stems ----------
 GM = {"organ": 17, "pizz": 45, "timp": 47}
@@ -207,7 +224,8 @@ def arrange(t):
     if t["kit"] == "finale":
         fluid_perc.append((2, GM["timp"], [(bar * 4, 1.0, near(chord_at(ch, bar * 4), 41), 0.8) for bar in range(bars)]))
     stems["perc"] = (fluid_perc, perc)
-    stems["bells"] = ([], [(b, d, p, v, t["bells"]) for b, d, p, v in dings(ch, bars, t["key_lo"] + 12, t["key_hi"] + 12, 1, 0.45)])
+    bells = dings(ch, bars, t["key_lo"] + 12, t["key_hi"] + 12, 1, 0.45) + motif_notes(t)
+    stems["bells"] = ([], [(b, d, p, v, t["bells"]) for b, d, p, v in bells])
     # reactive layers: "fast" (running / chaining moves) and "arp" (cap-jump chains)
     fast = [(b, d, 0, v, "conga") for b, d, _, v in hits(bars, (6, 7), 0, 0.75)] + \
            [(b, d, -5, v, "conga") for b, d, _, v in hits(bars, (14, 15), 0, 0.8)] + \
@@ -217,9 +235,32 @@ def arrange(t):
     stems["fast"] = ([], fast)
     stems["arp"] = ([], [(b, d, p, v, t["arp"]) for b, d, p, v in arpeggio(ch, bars, t["key_lo"], t["key_hi"] + 5, 0.42)])
     stems["bah"] = ([], [])   # synthesized separately
+    # "danger" (time running low, a boss near): low tremolo strings on the chord roots and fifths,
+    # over a staccato contrabass pulse on every beat
+    danger = []
+    for bar in range(bars):
+        for half in (0, 2):
+            c = chord_at(ch, bar * 4 + half); r = near(c, 45)
+            danger += [(bar * 4 + half, 1.9, r, 0.72), (bar * 4 + half, 1.9, r + (7 if 7 in c[1] else 6), 0.6)]
+    pulse = [(bar * 4 + q, 0.3, near(chord_at(ch, bar * 4 + q), 33), 0.8 if q % 2 == 0 else 0.62) for bar in range(bars) for q in range(4)]
+    stems["danger"] = ([(10, 44, danger), (11, 43, pulse)], [])
+    # "secret" (near a moon coin not found yet): high celesta twinkles on the chord, a bell tree now and then
+    twinkle = []
+    for bar in range(bars):
+        for s, k in ((0, 0), (3, 1), (6, 2), (10, 3), (13, 2)):
+            tn = tones(chord_at(ch, bar * 4 + s / 4), t["key_lo"] + 12, t["key_hi"] + 14)
+            twinkle.append((bar * 4 + s / 4, 0.5, tn[min(k, len(tn) - 1)], 0.5 if s else 0.62))
+    stems["secret"] = ([(12, 8, twinkle)], [(bar * 4, 2, 0, 0.5, "belltree") for bar in range(0, bars, 4)])
+    # "mallet": the bonus room remix, the whole theme on marimba and glockenspiel alone
+    mallet = [(b, d, p, v * 0.95, "marimba") for b, d, p, v in mel] + \
+             [(b, d, p, v, "glock") for b, d, p, v in bells] + \
+             [(b, d, p + 12, v * 0.8, "marimba") for b, d, p, v in bass_line(ch, bars)]
+    stems["mallet"] = ([], mallet)
     return stems
 
-LEVELS = {"lead": -15, "bass": -17, "perc": -20, "bells": -27, "fast": -23, "arp": -26, "bah": -19}
+LEVELS = {"lead": -15, "bass": -17, "perc": -20, "bells": -27, "fast": -23, "arp": -26, "bah": -19,
+          "danger": -21, "secret": -25, "mallet": -15}
+SOLO = ("mallet",)   # stems that play on their own (the bonus room remix), so they are not mixed with the rest
 
 def rms_db(x):
     a = np.abs(x).max(axis=1); act = x[a > 1e-3]
@@ -242,9 +283,13 @@ def build(t, outdir):
         stems[name] = fold(x, L)
     for name, x in stems.items():   # level each stem to its target loudness
         stems[name] = x * db(LEVELS[name] - rms_db(x))
-    peak = np.abs(sum(stems.values())).max()
+    peak = np.abs(sum(x for n, x in stems.items() if n not in SOLO)).max()
     if peak > 0.9:
-        for name in stems: stems[name] *= 0.9 / peak
+        for name in stems:
+            if name not in SOLO: stems[name] *= 0.9 / peak
+    for name in SOLO:
+        peak = np.abs(stems[name]).max()
+        if peak > 0.9: stems[name] *= 0.9 / peak
     for name, x in stems.items(): save_ogg(os.path.join(outdir, name + ".ogg"), x)
     meta = dict(title=t["title"], bpm=t["bpm"], beats=t["bars"] * 4, samples=L, rate=SR, stems=list(stems),
                 bah_beats=sorted(b for b, _ in bah_notes(t["chords"], t["bahs"])))
@@ -255,6 +300,7 @@ def build(t, outdir):
     gmap = {"marimba": 12, "xylo": 13, "glock": 9}
     parts = []
     for name, (fparts, snotes) in arrange(t).items():
+        if name in SOLO: continue   # the bonus room remix repeats the other parts
         parts += fparts
         byinst = {}
         for b, d, p, v, i in snotes:

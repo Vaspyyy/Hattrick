@@ -12,3 +12,4 @@ __pycache__/
 /vendor/miniaudio.o
 /vendor/stb_image.o
 /gfx-template/
+/backups/

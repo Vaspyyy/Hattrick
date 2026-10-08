@@ -50,6 +50,69 @@ SSSSSSSS      SSSSSSSS      g      g                                          ||
 SSSSSSSS      SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS||SSSSSSSS
 SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
+= 2 tube town       music=overworld   card=hills   time=400
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                     oooo
+
+                                                                                                                      (
+
+                                                                                                                     SSSS
+                                                                                                                     SSSS
+                                                                                                                     SSSS
+                                                                                                                  ?  SSSS
+                                                                                                                     SSSS
+                        o                                                                o o                         SSSS                                                                                                         o
+                      o   o                                                o o    o o                          ?     SSSS                                                 oo                                                    o   o
+                    o       o                                       o o                                              SSSS                                          o                                                          o       o
+                                                                                     MM                              SSSS                 o                               44
+          o                                    o                       MM            ||                     ?        SSSS               o   o                             ||                                                       S
+        o   ooooo     n        oo            o   o                     ||     m      ||     MM                       SSSS             o       o   n               BBB     ||                                                      SS
+      o       o       MM                   o       o            MM     ||     MM     ||     ||                       SSSS         m               MM        m             ||                                        n            SSS
+                      ||        11                              ||     ||     ||     ||     ||           ?           SSSS         MM              ||        MM            ||                                        MM          SSSS
+              MM      ||        ||                      o o o   ||     ||     ||     ||     ||                     3-SSSS-3       ||              ||        ||            ||                o o o o                 ||         SSSSS
+   @          ||      ||        ||                  22          ||     ||     ||     ||     ||       K   o         3-SSSS-3       ||        g     ||        ||            ||            55            g       g     ||        SSSSSS            F
+##########################################      ####||########  ||     ||     ||     ||     ||   ###############################################################################     ###||######################################################################
+##########################################      ####||########  ||     ||     ||     ||     ||   ###############################################################################     ###||######################################################################
++ tube cellar
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+S                                      S
+S                                      S
+S                                      S
+S                                      S
+S     o o o o o o o o o o o o o        S
+S                                      S
+S11                               22   S
+S||       g               g       ||   S
+SSSSSSSSSSSSSSSSBBBBSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSS    SSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSo( oSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
++ rooftop garden bg=sky
+
+
+                         (
+
+                            ooooo
+
+
+
+            o      o      o
+          o   o  o   o  o   o    o o o
+ 44     o      oo     oo      o        55
+ ||                                    ||
+SSSSSSS   SSSS   SSSS   STTS   SSSSSSSSSSSSS
+SSSSSSS   SSSS   SSSS   SSSS   SSSSSSSSSSSSS
+
 = 2 brickworks     music=underground card=bricks
 
 
@@ -57,7 +120,7 @@ SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
                                                               SSSS
                                                               SSSS                                                              F
-                                                              SSSS
+                                                              SSSS                                    (
                                                               SSSS
                           SS                                  SSSS                                    SS
                           SS                                  SSSS                                    SS
@@ -68,7 +131,7 @@ SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
                           SS                                  SSSS                                    SS   ######
                           SS o                                SSSS                                    SS   ######
                           SS                      h           SSSS                                    SS o ######
-                          SS            K                     SSSS                                    SS   ######
+        (                 SS            K                     SSSS                                    SS   ######
                           SS o #################BBBCCCCBBB##BBSSSS####                                SS   ######
                           SS   #################          ##BBSSSS####       ooo                      SS o ######
                           SS   #################          ##BBSSSS####                                SS   ######
@@ -86,14 +149,84 @@ SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
 + brick cellar
 SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
-S                              S
-S     o o o o o o o o o o      S
+S               (              S
+S     o o o o o o o o o o    P S
 S                              S
 S                              S
 S11  CCCCCCCCCCCCCCCCCCCCCC  22S
 S||                          ||S
 SSS^^^^^^^^^^^^^^^^^^^^^^^^^^SSS
 SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+
+= 2b snapper den   music=underground   card=bricks   time=400   boss=matriarch   mini=walker
+; boss level: Chief Walker guards the halfway point, the Snapper Matriarch the end
+
+
+
+                                                                                           SSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+                                                                                                ||              ||
+                                                                                                MM              MM
+
+
+
+
+        o o o o o             SSSS             SSSS
+              BBB                                                 o o o o o o
+                                                                        MM                   MM     MM       MM     MM
+  @                                     J                     K         ||                   ||     ||   N   ||     ||              F
+############################################################################################################################################
+############################################################################################################################################
+
+= 3 ramp rally      music=overworld   card=hills   time=400
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                                                                                                                                                                    (
+                                                           (
+                                                                                                                                                                                                                 h
+                                                           o
+                                                           o
+                                                                                                                                                                                                                      o o o o
+                                                                                                                                                                                                                                         o
+                                                                                                                                                             ob                                                 /##########\           o   o                    oooooo
+                                                         /####\            o                                                                               o   o                                               /############\        o       o
+                   o o o                                /######\         o   o                                                                           o       o                                            /##############\
+                                           g           /########\      o       o                                                                 /##\                                                        /################\                                      S
+                                      /####\          /##########\                                g   g                                         /####\                                                      /##################\                                    SS
+                                  ooo/######\ooo     /############\                          /##########\       h          oooo                /######\                                                    /####################\                                  SSS
+      o o o o     /######\          /########\      /##############\                        /############\                                    /########\                          /###\                   /######################\                                SSSS
+                 /########\        /##########\    /################\                      /##############\                 11               /##########\                        /#####\                 /########################\                              SSSSS
+   @            /##########\      /############\  /##################\            o o o   /################\                ||      K       /############\              22      /#######\     g   g     /##########################\                g           SSSSSS              F
+#######################################################################          #########################################################################            ##||#############################################################     ################################################################
+#######################################################################          #########################################################################            ##||#############################################################     ################################################################
++ half-pipe cave
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+S                                              S
+S                                              S
+S                                              S
+S                                              S
+S                                              S
+S11                    (                    22 S
+S||               o o o o o o               || S
+SSSS\                                      /SSSS
+SSSSS\                                    /SSSSS
+SSSSSS\                                  /SSSSSS
+SSSSSSS\                                /SSSSSSS
+SSSSSSSS\   o o o o o o o o o o o o    /SSSSSSSS
+SSSSSSSSS\                            /SSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
 = 3 spikes         music=athletic    card=spikes
 
@@ -109,7 +242,7 @@ SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
 
 
-                                                                                                                                            oo
+                                                                                                                                            oo   (
 
 
                                                                                                                                            SSSS
@@ -124,17 +257,93 @@ SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                        o     ##########                   SSSS                      o o o                             *~~        ~~%              SSS
                                                                                                 o             ##########                   SSSS                                                                                   SSSS
             o o o o                                                                                           ##########                   SSSS                                           22                                     SSSSS
-                                                  oo         oo                             CCC     CCC       ##########                   SSSS                              ###################         ##         ##         ###########
+                                                  oo    (    oo                             CCC     CCC       ##########                   SSSS                              ###################         ##         ##         ###########
   @                            g                                                                              ##########     K             SSSS    g                         ###################         ##         ##         ###########
 ############^^^^^^^^######################^^^^^^^^##^^^^^^^^^##^^^^^^^^^##################^^^^^###^^^^^###^^^^#####################################################          ###################^^^^^^^^^##^^^^^^^^^##^^^^^^^^^###########
 ###################################################################################################################################################################          #############################################################
 
 + sky shortcut bg=sky
-
+        (
   o o o o o o o o o o o o o o o
-
+                P
  11                         22
 SSSS   CC    CC    CC    CCSSSSS
+
+= 3b lava scale   music=athletic   card=castle   time=400   boss=bigwalker   mini=buzzer
+; boss level: Buzz Boss, then Big Walker; ground pound his side of the seesaw
+
+
+
+
+
+                                        J
+
+          o o o o o
+
+
+  @                                                           K                                                                     F
+################################################################################################         N         #########################
+################################################################################################                   #########################
+################################################################################################                   #########################
+################################################################################################                   #########################
+################################################################################################                   #########################
+
+= 4 crumble canyon  music=athletic    card=spikes   time=400
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS
+                                                                                                                                               SSSSS                                                                o o o o o o
+                                                                                                                                               SSSSS                                                                              (                               o
+                                                                                                                                               SSSSS                                                          SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS                    o o
+                                                                                                                                                ||                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                   o   o
+                                                                                                                                                ||                h
+                                                                                                                                                33                             b
+                                                                                                                                                               o o o       o o o                                                                                    S
+                                                                                              o        K                                                                                                                                                           SS
+                                                                                                  SSSSSSSSSSS                                                  CCC         CCC                                                                                    SSS
+                                                                                         o   CCC  SSSSSSSSSSS                                  o o o o                                 CCC    o o o o o o       o o o o o o o o o o o o o o       44             SSSS
+                                                                                                  SSSSSSSSSSS                                                                                           g                                         ||      g     SSSSS             F
+                                                                                    o   CCC       SSSSSSSSSSS    o o o o o o o o              SSSSSSSSS  CCC         CCC         CCC        ################TTCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC#####################################################
+                                                                                                  SSSSSSSSSSS                                 SSSSSSSSS                                     ##################                               #####################################################
+                                                        ooo                    o   CCC            SSSSSSSSSSS   CCCCCCCCCCCCCCCCCC            SSSSSSSSS                                     ##################                               #####################################################
+        o o o o o                                                                                 SSSSSSSSSSS                                 SSSSSSSSS                                     ##################                               #####################################################
+                        o o o o o             o o o          o o o            CCC                 SSSSSSSSSSS                                 SSSSSSSSS                                     ##################                               #####################################################
+   @                                                              g                               SSSSSSSSSSS                                 SSSSSSSSS                                     ##################                               #####################################################
+#######################CCCCCCCCCC############CCCCCC    CCCCCC################                     SSSSSSSSSSS                                 SSSSSSSSS                                     ##################                               #####################################################
+#######################          ############                ################                     SSSSSSSSSSS                                 SSSSSSSSS                                     ##################                               #####################################################
+#######################          ############                ################                     SSSSSSSSSSS                                 SSSSSSSSS                                     ##################                               #####################################################
+#######################          ############                ################                     SSSSSSSSSSS   TT      g     TT    g  TT     SSSSSSSSS                                     ##################                               #####################################################
+#######################          ############                ################                     SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS SSSSSSSSS                                     ##################                               #####################################################
+#######################          ############      o o       ################                     SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS SSSSSSSSS                                     ##################                               #####################################################
+#######################          ############        (       ################                     SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS SSSSSSSSS                                     ##################                               #####################################################
+#######################          ############     SSSSSSSTS  ################                     SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS SSSSSSSSS                                     ##################                               #####################################################
+#######################          ############                ################                     SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS SSSSSSSSS                                     ##################                               #####################################################
+#######################          ############                ################                     SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS SSSSSSSSS                                     ##################                               #####################################################
++ crumble sky bg=sky
+  ||
+  ||
+  33
+
+
+
+                    (
+
+                o o o o o
+
+         o o o o o o o o o o o o  44
+                                  ||
+SSSSSSSSCCCCCCCCCCCCCCCCCCCCCCCCSSSSSSSS
+SSSSSSSS                        SSSSSSSS
 
 = 4 sky            music=athletic    card=sky
 
@@ -149,9 +358,9 @@ SSSS   CC    CC    CC    CCSSSSS
                                                                                                                                               ooo             o        o
 
                                                                                                                                             SSSSSSSSS       CC       CC       CC         ################
-                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                   ################
+                                          (                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                   ################
                                                                                                      SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS                                 h                 ################
-                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                   ################
+                                                                                (                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                   ################
                                                                                                                                                                                          ################
                                                                                                                                                                                          ################
                                  o   o   o   o   o                                                                                                                                       ################
@@ -171,11 +380,77 @@ SSSS   CC    CC    CC    CCSSSSS
 ############             ######                    ######                                        ########                            ####                                                ################
 
 + cloud garden bg=sky
-
+                         (
   o o o o o o o o o o o o o o
-
+                P
  11                         22
 SSSS    CCC     CCC     CCCSSSS
+
+= 4b storm peak   music=athletic   card=sky   time=400   boss=cloudking   mini=walker
+; boss level: the Cloud King; throw the cap into his clouds and they zap him
+
+
+
+                                                                                                         N
+
+
+
+
+
+          o o o o o o
+
+
+
+  @                                     J                     K                                                                     F
+############################################################################################################################################
+############################################################################################################################################
+
+= 5 ember fort      music=underground card=castle   time=400
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+                                                                                    SSSSSSSSSSSSSSSSSSSSSSSSSSSSS                                                                                   SSSSSSSSSSSSSSSSSS    SSSSSSSSSSSSS
+                                                                                    SSSSSSSSSSSSSSSSSSSSSSSSSSSSS                                                                                   SSSSSSSSSSSSSSSSSSooooSSSSSSSSSSSSS
+                                                                                    SSSSSSSSSSSSSSSSSSSSSSSSSSSSS                                                                                   SSSSSSSSSSSSSSSSSS (  SSSSSSSSSSSSS
+                                                                                    SSSSSSSSSSSSSSSSSSSSSSSSSSSSS                                                                                   SSSSSSSSSSSSSSSSSS    SSSSSSSSSSSSS
+                                                                                    SSSSSSSSSSSSSSSSSSSSSSSSSSSSS                                                                                   SSSSSSSSSSSSSSSSSS    SSSSSSSSSSSSS
+                                                                                    SSSSSSSSSSSSSSSSSSSSSSSSSSSSS                                                                                   SSSSSSSSSSSSSSSSSS    SSSSSSSSSSSSS
+                                                                                    SSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+                                                                                    SSSSSSSSSSSSSSSSSSSSSSSSSSSSS            (                                                                                                                o
+                                                                                          %         *                                                                                                              ?                         o o
+                                                                                          ~         ~                                                                                                                                       o   o
+               o o o                                                                      ~         ~                                                                  *~~~~   %~~~~
+                                                                                          ~         ~                                                                                                           ?
+                            o           ~                     o o   o o                   ~         ~                        *:::::                                 o o     o o     o o                                                         S
+                *:::      o   o         ~      n                  %~~~                    ~         ~                                              o o o                                                                      *!!!!            SS
+      o o o o                           ~      MM   o o o   SS    SS    SS                ~         ~                                         m                    SS      SS      SS                        ?                                SSS
+                                        ~      ||           SS    SS    SS            o o o o o o o o o o o 11o                               MM                   SS      SS      SS                                                        SSSS
+   @                                    *      ||           SS    SS    SS    K                             ||        g               g       ||      22           SS      SS      SS         g              o                              SSSSS       F
+SSSSSSSSSSSSSSSSSSSSSSSSSS^^^^^^SSSSSSSSSSSSSSSSSSSSSSSSSS^^^^^^^^^^^^^^^^SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS^^^^^^^^^^^^^^^^^^^^^^^^SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
++ ember vault
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+S                                      S
+S                   (                  S
+S                                      S
+S         o o o o o o o o o o o        S
+S               *::     %::            S
+S           o               o          S
+S           SS      SS      SS         S
+S 11                               22  S
+S ||                               ||  S
+SSSSSSSSS^^^^^^^^^^^^^^^^^^^^^^^SSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
 = 5 hatrick        music=finale      card=castle
                        ^^^^^
@@ -190,14 +465,14 @@ SSSS    CCC     CCC     CCCSSSS
      SS   SSSSSSSSSSSBBSSSSS
      S^   SSSS       BBSSSSS                                                                                                                                                                           F
      S^   SSSS       BBSSSSS
-     S^   SSSS         SSSSS
+     S^   SSSS         SSSSS                                                                                                                                                                (
      SS   ^SSS         SSSSS
      SS   ^SSS         SSSSS
-     SS   ^SSS         SSSSS
+     SS   ^SSS         SSSSS                                                                                                                                                (
      SS   ^SSS         SSSSS^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
      S^   SSSS         SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
      S^   SSSS         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                o     o                 o       o                                                               SSS
-     S^   SSSS                             %~                    *~                                                                                                                        SSSS
+     S^   SSSS                             %~                    *~                                                                                                         ?              SSSS
      SS   ^SSS                                                                                                                                                                            SSSSS
      SS   ^SSS                             oo         oo         oo                                     n                              m                                                 SSSSSS
      SS   ^SSS                                                                 K   22                   MM                             MM                                               SSSSSSS
@@ -216,12 +491,50 @@ SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 S                                      S
 S   o   o   o   o   o   o   o   o      S
 S                                      S
-S                                      S
+S                    (               P S
 S       *~~      %~~      *~~          S
 S                                      S
 S 11                               22  S
 S ||                               ||  S
 SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+
+= 5b haberdashery   music=finale   card=castle   time=500   boss=haberdasher   mini=buzzer
+; the final boss: the Haberdasher. Knock down his scissors; in phase 2 cap his top hat and wear it
+
+
+
+
+
+
+
+
+                                        J
+
+          o o o o o o                                                                          SSSS             SSSS
+
+
+  @                                                           K                                          N                          F
+############################################################################################################################################
+############################################################################################################################################
+
+= hat shop       music=overworld   card=hills   secret=1   star=60
+; A secret level behind the red pennant in the Hills' secret cave. Three moon coins, a postcard.
+
+
+
+
+
+                                        (                                              P
+                                                                                     BBBBB
+                              o o o    BBB                       o o o o
+                                                 ?             BBBBBBBBB                     (
+                     o o                                                              o o o BBB
+                    BBBBB         b                      o o
+             o o                          o o o        BBBBB          g                          o o o
+            BBBBB                        CCCCCCC                                    K                         F
+  @                   g      T               (       g        T    T                         g
+#####################################  #################   ##############   ############################################
+#####################################  #################   ##############   ############################################
 
 = lab              music=athletic
 
@@ -256,6 +569,164 @@ SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
    @                                                                                                                                                                                                                                                   F
 ##########################################################################################################################################################################################################################################################
 ##########################################################################################################################################################################################################################################################
+= lab gimmicks lava tower   music=underground rise=lava:7 flip=swap time=300
+; the lava rises from the floor; the flower turns bricks to coins (and back)
+#             F              #
+#        SSSSSSSSS           #
+#                            #
+#   o o o                    #
+#  SSSSSS              SSSS  #
+#                            #
+#           BBBBBB           #
+#                            #
+#  o                   SSSS  #
+#  SSSS          o o         #
+#               SSSSS        #
+#      O                     #
+#  {{{{{               }}}}} #
+#                            #
+#                            #
+#       BBoBB         SSSS   #
+#                            #
+#  SSSS        SSSS          #
+#                            #
+#        K                   #
+#     SSSSSSS          SSS   #
+#                            #
+#                 SSSS       #
+#  SSSS                      #
+#           SSSS             #
+#                            #
+#  @                         #
+##############################
+
+= lab gimmicks toybox   music=overworld flip=gravity
+; seesaws, scale lifts, gold blocks; tubes 1 2 3 lead to the flip room, the turning room and the 8-bit room
+
+
+
+
+
+
+                                                                  o o o o o o o
+
+                                                       o o o o o
+                             o o o                                                      A
+      A
+
+                                    {{{{        }}}}               _____V_____                                  {{{   }}}
+  @          ___V___                                      O             S                                K                    F
+############    S          ########                  ############       S      #####11####22####33############            ########
+############    S          ########                  ############       S      #####||####||####||############            ########
++ flip room bg=cave
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+S                                      S
+S                                      S
+S     o o o o o o o o o o o o o o      S
+S                                      S
+S       o  o  o  o  o  o  o  o         S
+S                                      S
+S                                      S
+S           SSSSSSSSSSSSSSSS           S
+S                  (                   S
+S                                      S
+S                                      S
+S                                      S
+S                                      S
+S                                      S
+S                                      S
+S                                      S
+S                                      S
+S                                      S
+S                                      S
+S                       SSSSSSS        S
+S                                      S
+S                                      S
+S                                      S
+S         SSSSSSS                      S
+S                                      S
+S                                      S
+S                                      S
+S                                      S
+S   11              O                  S
+SSSS||SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
++ turning room bg=cave
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+S                              S
+SD                            DS
+S                              S
+S                              S
+S                              S
+S                           o oS
+S                              S
+S                              S
+S                              S
+S       S                      S
+S     o S                      S
+S       S                      S
+S     o S                      S
+S       S            ooooo     S
+S     o S                      S
+S       S           SSSSSSS    S
+S     o S                      S
+S       S                      S
+S     o S                      S
+S       S                      S
+S                              S
+S     SSSSSSS                  S
+S                              S
+S                              S
+S                              S
+S                              S
+S                              S
+S                              S
+SD             22             DS
+SSSSSSSSSSSSSSS||SSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
++ eight bit room bg=8bit
+
+
+
+
+            o
+                                                    SSSS
+                                             o o    SSSS
+                              o o o                SSSSS
+          B?BoB                             BBBB   SSSSS
+                        SS                        SSSSSS
+                        SS                        SSSSSS
+  33                g   SS            g           SSSSSS
+##||##########################    ######################
+##############################    ######################
+
+= lab gimmicks airship   music=finale card=castle scroll=26 time=300
+; the screen scrolls on its own: cannons, propeller fans, a lift and a seesaw
+
+
+
+
+                                                                                         o o o o o
+                          oo
+
+                          oo
+                                                                                                                o o
+                          oo                                                                                    BBBB
+                  o o o
+                          oo                    E                                                                                                                                         o o o o
+                                              SSSSS  {{{     }}}                                W                     SSSSSSSS
+                                              SSSSS                                             S                     SSSSSSSS  ___V___
+   @        E                           E    gSSSSS                     K       E               S         E           SSSSSSSS                g       E     g                   E                               F
+SSSSSSSSSSSSSSSSSSSSSSS        SSSSSSSSSSSSSSSSSSSS               SSSSSSSSSSSSSSSSSSSS          S     SSSSSSSSSSSSSSSSSSSSSSSS     S    SSSSSSSSSSSSSSSSSSSSSSSSS        SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSS   WW   SSSSSSSSSSSSSSSSSSSS               SSSSSSSSSSSSSSSSSSSS   W      S     SSSSSSSSSSSSSSSSSSSSSSSS     S    SSSSSSSSSSSSSSSSSSSSSSSSS        SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSS   SS   SSSSSSSSSSSSSSSSSSSS               SSSSSSSSSSSSSSSSSSSS   S      S     SSSSSSSSSSSSSSSSSSSSSSSS     S    SSSSSSSSSSSSSSSSSSSSSSSSS   WW   SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSS   SS   SSSSSSSSSSSSSSSSSSSS               SSSSSSSSSSSSSSSSSSSS   S      S     SSSSSSSSSSSSSSSSSSSSSSSS     S    SSSSSSSSSSSSSSSSSSSSSSSSS   SS   SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSSSSSSSSSSSS   SS   SSSSSSSSSSSSSSSSSSSS               SSSSSSSSSSSSSSSSSSSS   S      S     SSSSSSSSSSSSSSSSSSSSSSSS     S    SSSSSSSSSSSSSSSSSSSSSSSSS   SS   SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+
+= lab gimmicks hills at night   copy=hills sky=night music=overworld
+; the hills map at night: the walkers fly and the buzzers walk
+
+
 = lab movement playground music=athletic card=playground
 
 
@@ -263,29 +734,56 @@ SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
 
 
 
+                                                                                                                                                                                                                         o
+                                                                                                                                                                                                                         o
+
+
+                                                                                                                                                                                                                            SS
+                                                                                                                                                                                                                            SS
+                                                                                                                                                                                                                     SS     SS
+                                                                                                                                                                                                                     SS     SS
+                                                                                                                                                                                                                     SS     SS
+                                                                                                                                                                                                                     SS     SS
+                                                                                                                                                                                                                     SS     SS
+                                                                                                                                                                                                                     SS     SS
+                                                                                                                                                                                                                     SS     SS
+                                                                                                                                                                                            o  o  o  o  o  o         SS     SS
+                    o                   o                   o                      o                          o                   o                                                                                  SS     SS
+                                                                                                  SSSSSSSS                                                                                                           SS     SS
+                                   /#######\                                                      SSSSSSSS                          b                                                         ==     ==     ==       SS     SS
+                                  /#########\                                                     SSSSSSSS                                                                                                           SS     SS
+                                 /###########\                                                    SSSSSSSS                                                                                                           SS     SS                                           F
+                                /#############\                                                   SSSSSSSS                                                                                                           SS     SS   SwwwwwwwwwwwwwwwwwwwwwwS
+                               /###############\                    SSSSSSSSS                     SSSSSSSS                                                                                                           SS     SS   S                      S
+                              /#################\                   SSSSSSSSS                     SSSSSSSS                                                                                                                  SS   S                      SS
+                             /###################\                  SSSSSSSSS                     SSSSSSSS      SSSSSSSSSSSS                                                                                                SS SSS       oooooooo       SS
+11 @                        /#####################\                 SSSSSSSSS         g           SSSSSSSS                                           IIII                                                                   SS SSS                      SS
+###########################################################################################################################################IIIIIIIIIIIIIIIIIIIIIIII####>>>>>>>><<<<<<<<####                    ###############################################################
+###########################################################################################################################################################################################                    ###############################################################
++ cap garden bg=sky
+; cap mechanics (cap.h): post H over the pits, coins the cap carries home, a walker to swap hats with
+; and the stone it breaks, the cap switch X (throw up) for the red R / blue U blocks, a buzzer for the flutter
+
+                                               oo
+
+                                              X           o
+                                                         UU b
+                                                  R    U        ooo
+                                                  R  U
+  11         H           oooo     g               R               H         22  33
+##########          ####      ##########SS####################          ############
+##########          ####      ##########oo####################          ############
+##########          ####      ################################          ############
++ lantern cave bg=dark
+; a dark cave: the cap lights the way; a spitter for seeds
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-                    o                   o                   o                      o                          o                   o
-                                                                                                  SSSSSSSS
-                                   /#######\                                                      SSSSSSSS                          b
-                                  /#########\                                                     SSSSSSSS
-                                 /###########\                                                    SSSSSSSS                                       F
-                                /#############\                                                   SSSSSSSS
-                               /###############\                    SSSSSSSSS                     SSSSSSSS
-                              /#################\                   SSSSSSSSS                     SSSSSSSS
-                             /###################\                  SSSSSSSSS                     SSSSSSSS      SSSSSSSSSSSS
-   @                        /#####################\                 SSSSSSSSS         g           SSSSSSSS
-######################################################################################################################################################
-######################################################################################################################################################
+            ooooo               ooooo
+                        m
+  22          H         MM        H           g        33
+##########          ##########          ####################
+##########          ##########          ####################
+##########          ##########          ####################

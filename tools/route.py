@@ -4,7 +4,7 @@
 # usage: python3 tools/route.py LEVEL out.tas [prefix.tas] [beam=24] [steps=200]
 #                               [wp=X,Y[,ROOM] ...]   (px; the last waypoint is the flag by default)
 # It prints its progress and writes the best route so far after every step.
-import os, re, subprocess, sys
+import os, re, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -40,7 +40,7 @@ MACROS += [[("RDJ", 1), ("RD", 8), ("R", LAND)], [("RDJ", 1), ("R", LAND)], [("L
 def simulate(seq):
     """Replays seq; returns (status, frames, rows) with one (x, y, gnd, st, room) per frame."""
     tas = "\n".join(f"{n} {k}" for k, n in seq) + "\n"
-    fn = f"/tmp/claude-1000/route_{os.getpid()}_{id(seq)}_{os.urandom(4).hex()}.tas"
+    fn = f"{tempfile.gettempdir()}/route_{os.getpid()}_{id(seq)}_{os.urandom(4).hex()}.tas"
     open(fn, "w").write(tas)
     res = subprocess.run([SIM, lvl, fn, "trace"], capture_output=True, text=True, env={k: v for k, v in os.environ.items() if k != "SIM_RESPAWN"})
     os.unlink(fn)
@@ -100,6 +100,7 @@ for step in range(steps):
     nxt, seen = [], set()
     for (seq, wpi, base, full), (status, rows) in results:
         if status == "GOAL":
+            if wpi < len(wps) - 1: continue   # the flag before every waypoint: not the route asked for
             # keep only up to the goal frame
             k = next((i for i, r in enumerate(rows) if r[3] == 14), len(rows)) + 2   # through the frame the sim reports GOAL
             route, left = [], k

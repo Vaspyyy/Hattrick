@@ -5,4 +5,6 @@ enum { S_COIN, S_JUMP, S_JUMP2, S_JUMP3, S_FLIP, S_LONGJ, S_SPIN, S_ROLL, S_DIVE
        S_MENUMOVE, S_MENUOK, S_MENUBACK, S_PAUSE,
        S_CHECK, S_TUBE, S_CRUMBLE, S_REVEAL, S_SPIT, S_EMERGE, S_TICK, S_BONUS, S_HURRY, S_MOON, S_CLEAR, S_DEATH, NSOUND };
 // Music stems: every theme folder in assets/music/ can hold one file per stem (MODDING.md).
-enum { STEM_LEAD, STEM_BASS, STEM_PERC, STEM_BELLS, STEM_FAST, STEM_ARP, STEM_BAH, NSTEM };
+// danger: low strings when time runs short or a boss is near; secret: celesta near a moon coin not
+// found yet; mallet: the bonus room remix (the theme on marimba and glockenspiel alone).
+enum { STEM_LEAD, STEM_BASS, STEM_PERC, STEM_BELLS, STEM_FAST, STEM_ARP, STEM_BAH, STEM_DANGER, STEM_SECRET, STEM_MALLET, NSTEM };

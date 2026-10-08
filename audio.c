@@ -24,7 +24,7 @@
 #define MAXBAH 256
 
 static const char *const EXT[] = { "ogg", "wav", "flac", "mp3" };
-static const char *const STEM_NAME[NSTEM] = { "lead", "bass", "perc", "bells", "fast", "arp", "bah" };
+static const char *const STEM_NAME[NSTEM] = { "lead", "bass", "perc", "bells", "fast", "arp", "bah", "danger", "secret", "mallet" };
 
 static const char *const SOUND_FILE[NSOUND] = {
   "sfx/coin", "sfx/jump", "sfx/jump2", "sfx/jump3", "sfx/flip", "sfx/longjump", "sfx/spin", "sfx/roll", "sfx/dive",
@@ -54,9 +54,11 @@ static struct {
   _Atomic int qw, qr; int qsound[QLEN]; float qpan[QLEN];
   Music *music;                            // swapped under lock
   _Atomic long long playhead;              // frames into the loop, for snd_bah
+  _Atomic int paused;                      // snd_pause: the music playhead holds still
   _Atomic float target[NSTEM]; _Atomic float rate[NSTEM];
   float gain[NSTEM];                       // audio thread only
   _Atomic float master; _Atomic int muted; float out;
+  _Atomic float wet; float wetg, lp[4];     // underwater low-pass: target and eased amount, filter state
   float buf[2 * 4096];
   FILE *dump; long long dumped;
   int log; double t0;                      // HATRICK_AUDIO_LOG=1: print sound and theme events (tests)
@@ -133,7 +135,7 @@ static void callback(ma_device *dev, void *output, const void *input, ma_uint32 
   atomic_store(&A.qr, r);
   // music: every stem advances by the same n frames
   ma_mutex_lock(&A.lock);
-  if (A.music) {
+  if (A.music && !atomic_load(&A.paused)) {
     Music *mu = A.music;
     for (ma_uint32 done = 0; done < n;) {
       ma_uint64 left = mu->frames - mu->pos;
@@ -173,6 +175,21 @@ static void callback(ma_device *dev, void *output, const void *input, ma_uint32 
     } else for (ma_uint64 i = 0; i < k; i++) { o[2 * i] += s[2 * i] * v->l; o[2 * i + 1] += s[2 * i + 1] * v->r; }
     v->pos += k;
     if (v->pos >= c->frames) v->clip = -1;
+  }
+  // underwater: two one-pole low-passes (about 700 Hz, 12 dB per octave) blended in by the eased amount
+  float wt = atomic_load(&A.wet), wg = A.wetg;
+  if (wt > 0 || wg > 0) {
+    const float k = 0.0876f;   // 1 - exp(-2 pi 700 / RATE)
+    for (ma_uint32 i = 0; i < n; i++) {
+      wg += (wt - wg) * 0.0004f;
+      for (int c = 0; c < 2; c++) {
+        float x = o[2 * i + c], *z = A.lp + 2 * c;
+        z[0] += (x - z[0]) * k; z[1] += (z[0] - z[1]) * k;
+        o[2 * i + c] = x + (z[1] * 1.25f - x) * wg;
+      }
+    }
+    if (wt == 0 && wg < 1e-4f) wg = 0;
+    A.wetg = wg;
   }
   // master volume (ramped, so mute and volume changes never click) and a soft limiter
   float want = atomic_load(&A.muted) ? 0 : atomic_load(&A.master), g = A.out;
@@ -282,6 +299,9 @@ void snd_stem(int stem, float gain, int ms) {
   atomic_store(&A.rate[stem], 1.0f / (RATE * (ms > 1 ? ms : 1) / 1000.0f));
   atomic_store(&A.target[stem], gain);
 }
+
+void snd_pause(int paused) { atomic_store(&A.paused, paused); }
+void snd_filter(float amount) { atomic_store(&A.wet, amount < 0 ? 0 : amount > 1 ? 1 : amount); }
 
 void snd_volume(float master, int muted) {
   atomic_store(&A.master, master); atomic_store(&A.muted, muted);

@@ -1,0 +1,3 @@
+# Hat Trick: 64 beats, 1738868 samples at 48000 Hz
+bpm 106
+bah 7.5 15.5 23.5 28 39.5 47.5 55.5 60 62

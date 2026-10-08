@@ -15,7 +15,7 @@ static void walk(int k) {tick(k);for(int i=0;i<300 && mapto>=0;i++)tick(0);}   /
 static void clearall(void) {for(int i=0;i<NLV;i++)progkeep(i,8);}
 int main(void) {
   fresh(); int x=hx,y=hy,enemy=en[0].x;
-  CHECK(nnode==NLV+2 && node[0].kind==N_HOUSE && node[1].lvl==0 && node[nnode-1].lvl==PLAY);
+  CHECK(nnode==NLV+2+NSEC && node[0].kind==N_HOUSE && node[1].lvl==0 && node[nnode-1].lvl==PLAY);
   CHECK(mapat==1);   // Hatrick starts at the first level
   for(int i=0;i<120;i++)tick(0);
   CHECK(menu && !resumable && menufr==120 && !tim && hx==x && hy==y && en[0].x==enemy);
@@ -36,7 +36,7 @@ int main(void) {
     tick(16);CHECK(!jbuf && hvy>=0);
     tick(0);for(int k=0;k<10;k++)tick(0);tick(16);CHECK(hvy<0); // a fresh jump works normally
   }
-  fresh();walk(1);tick(16);CHECK(menu && scoreview);tick(0);tick(16);CHECK(menu && !scoreview);   // home: the high scores
+  fresh();walk(1);tick(16);CHECK(menu && clhouse);tick(0);tick(4);CHECK(menu && scoreview);tick(0);tick(16);CHECK(menu && !scoreview);   // home: the high scores
   // A new run starts at level 1; later levels keep the run's score and time.
   fresh();clearall();score=900;tim=50;mapat=3;tick(16);CHECK(lvl==2 && score==900 && tim>=50);
   fresh();score=900;tick(16);CHECK(lvl==0 && !score && !tim);
@@ -80,7 +80,7 @@ int main(void) {
     CHECK(maphit(sx,sy)==n && maphit(sx+5*SC,sy-5*SC)==n && maphit(sx+12*SC,sy)!=n);
   }
   mapclick(0);for(int i=0;i<300 && mapto>=0;i++)tick(0);CHECK(mapat==0);
-  mapclick(0);CHECK(scoreview);tick(16);CHECK(!scoreview);
+  mapclick(0);CHECK(clhouse);tick(32);CHECK(!clhouse);
   mapclick(2);for(int i=0;i<300;i++)tick(0);CHECK(mapat==0);   // a locked stop: no walk
   fresh();muted=0;tick(128);CHECK(muted==1);
   tick(128);CHECK(muted==1);tick(0);tick(128);CHECK(!muted);

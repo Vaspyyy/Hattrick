@@ -269,8 +269,8 @@ int main(void) {
   CHECK(!naming && menu && !resumable && scoreview && hinew == 0 && hi[0].score == 99999 && !strcmp(hi[0].ini, "ZAB"));
   render(); tick(16); CHECK(menu && !scoreview);
   nhi = 0; hiload(); CHECK(hi[0].score == 99999);
-  // Hatrick's house on the map opens the table
-  mapat = 0; tick(0); tick(16); CHECK(menu && scoreview); render(); tick(0); tick(32); CHECK(!scoreview);
+  // Hatrick's house on the map opens the house; up there shows the table
+  mapat = 0; tick(0); tick(16); CHECK(menu && clhouse); tick(0); tick(4); CHECK(menu && scoreview); render(); tick(0); tick(32); CHECK(!scoreview);
   unlink(path);
 
   // ---- level file mistakes are reported and the rest still loads

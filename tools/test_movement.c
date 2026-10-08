@@ -196,7 +196,7 @@ static void catches_and_throws(void) {
   CHECK(cst==2 && !scan(cxp>>8,cyp>>8,8,4,SOLID));
   airborne(0); hx=160<<8; map[11][20]=6; int count=coins; tick(4|32);
   for(int i=0;i<10;i++)capupd(32);
-  CHECK(coins>count && !map[11][20]); // directional throw collects a coin
+  CHECK(coins+capx_carry>count && !map[11][20]); // directional throw collects a coin (carried home: cap.h)
   fresh(); st=GPLAND; posture(4); tick(32);
   CHECK(ckind==CAPDOWN && cvx>0 && !cvy && cyp==hy+(7<<8)); // ground-pound landing throw
   fresh(); tick(4|16); tick(32); CHECK(ckind==CAPSPIN && st==SPINJ);
@@ -331,7 +331,7 @@ static void remaining_combos(void) {
   fresh();hx=640<<8;tick(8|32);int start=hvx;
   for(int i=0;i<6;i++){tick(8);tick(8|32);}CHECK(hvx<=start);
   for(int i=0;i<15;i++)tick(8);start=hvx;tick(8|32);CHECK(hvx>start);
-  lvl=0;load();prevk=0;tick(PRACTICE);CHECK(lvl==NLV+1 && !done && map[29][28]==8 && map[22][43]==9);
+  lvl=0;load();prevk=0;tick(PRACTICE);CHECK(lvl==PLAY && !done && map[29][28]==8 && map[22][43]==9);
   tick(0);tick(PRACTICE);CHECK(menu && !resumable && !done); // F1 again: back to the map
   menu=0;
 }
@@ -350,7 +350,7 @@ static void terrain_moves(void) {
     for(int i=0;i<8 && st!=HANG;i++)tick(key);
     CHECK(st==HANG);tick(8);CHECK(st==NORM && ledget>0);
   }
-  lvl=NLV+1;load();prevk=0;for(int i=0;i<10;i++)tick(0);
+  lvl=PLAY;load();prevk=0;for(int i=0;i<10;i++)tick(0);
   int high=hy, airborne_frames=0;
   for(int i=0;i<300 && hx<430<<8;i++) {
     tick(2);if(hy<high)high=hy;if(!gnd)airborne_frames++;
@@ -365,7 +365,7 @@ static void terrain_moves(void) {
   tick(8);CHECK(st==ROLL && hvx>0 && gnd && duck==5); // crouch starts a downhill roll
   hx=360<<8;hy=181<<8;hvx=-500;face=-1;gnd=1;st=ROLL;slopedir=1;
   tick(8);CHECK(hvx>-500 && hvx<0 && gnd); // the same ramp slows an uphill roll
-  lvl=NLV+1;load();prevk=0;hx=420<<8;hy=229<<8;gnd=1;
+  lvl=PLAY;load();prevk=0;hx=420<<8;hy=229<<8;gnd=1;
   high=hy;airborne_frames=0;
   for(int i=0;i<300 && hx>200<<8;i++) {
     tick(1);if(hy<high)high=hy;if(!gnd)airborne_frames++;
@@ -382,12 +382,17 @@ static void terrain_moves(void) {
 
 int main(int argc, char **argv) {
   no_spawn_bounce(); stall_and_combos(); bounce_contacts(); analog_control(); rolling(); jumps_and_spin(); catches_and_throws(); crouch_collision(); braking_control(); longjump_inputs(); remaining_combos(); terrain_moves();
-  if (argc > 1 && !strcmp(argv[1], "--routes")) for (int i=0; i<NLV; i++) {
-    char level[2] = { '0'+i, 0 }, path[] = "tas/1.tas";
-    path[4] += i;
-    char *args[] = { "sim", level, path };
-    prevk = 0;
-    CHECK(replay_main(3,args)==0);
+  if (argc > 1 && !strcmp(argv[1], "--routes")) {   // each route belongs to a level by name: other levels can sit between them
+    static const char *const ROUTE[][2] = { {"HILLS","tas/1.tas"}, {"BRICKWORKS","tas/2.tas"}, {"SPIKES","tas/3.tas"}, {"SKY","tas/4.tas"}, {"HATRICK","tas/5.tas"},
+      {"TIDEPOOL BAY","tas/tidepool.tas"}, {"FROSTFALL PEAK","tas/frostfall.tas"}, {"CRAYON WOODS","tas/crayon.tas"}, {"CLOCKTOWER","tas/clocktower.tas"} };
+    modlevels();
+    for (int r=0; r<(int)(sizeof ROUTE/sizeof *ROUTE); r++) for (int i=0; i<NLV; i++) if (!strcmp(LV[i].name, ROUTE[r][0])) {
+      char level[12]; snprintf(level, sizeof level, "%d", i);
+      char *args[] = { "sim", level, (char *)ROUTE[r][1] };
+      prevk = 0;
+      CHECK(replay_main(3,args)==0);
+      modlevels();   // the replay may leave another level list loaded
+    }
   }
   printf("PASS: %d movement checks, including airborne throw timings\n",checks);
 }

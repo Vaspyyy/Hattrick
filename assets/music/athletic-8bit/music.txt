@@ -1,0 +1,3 @@
+# Cloud Hop: 64 beats, 1675636 samples at 48000 Hz
+bpm 110
+bah 7.5 15.5 23.5 31.5 39.5 47.5 55.5 61 62

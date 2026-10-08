@@ -20,10 +20,13 @@ static void fresh(void) { menu = 1; menufr = menunav = menurepeat = prevk = resu
 
 int main(void) {
   // the built-in copy matches the stock campaign
-  mapbuild(); CHECK(NLV == 5 && NLEVEL == 7 && PLAY == 6 && nnode == 7);   // home, five stops, the playground
-  CHECK(!strcmp(LV[0].name, "HILLS") && !strcmp(LV[4].name, "HATRICK") && !strcmp(LV[6].name, "LAB MOVEMENT PLAYGROUND"));
-  CHECK(!strcmp(LV[0].music, "overworld") && !strcmp(LV[1].music, "underground") && !strcmp(LV[4].music, "finale") && !strcmp(LV[6].music, "athletic"));
-  CHECK(LV[0].card == CARD_HILLS && LV[1].card == CARD_BRICKS && LV[3].card == CARD_SKY && LV[6].card == CARD_PLAYGROUND);
+  // (other levels, such as new worlds and boss levels, sit between the stock ones)
+  mapbuild(); CHECK(NLV >= 5 && NLEVEL >= NLV + 2 + NSEC && PLAY == NLEVEL - 1 - NSEC && nnode == NLV + 2 + NSEC);   // home, a stop per level (and secret level), the playground
+  int L_HAT = 0; while (L_HAT < NLV && strcmp(LV[L_HAT].name, "HATRICK")) L_HAT++;
+  int L_BRICK = 0; while (L_BRICK < NLV && strcmp(LV[L_BRICK].name, "BRICKWORKS")) L_BRICK++;
+  CHECK(!strcmp(LV[0].name, "HILLS") && L_HAT < NLV && !strcmp(LV[PLAY].name, "LAB MOVEMENT PLAYGROUND"));
+  CHECK(!strcmp(LV[0].music, "overworld") && L_BRICK < NLV && !strcmp(LV[L_BRICK].music, "underground") && !strcmp(LV[L_HAT].music, "finale") && !strcmp(LV[PLAY].music, "athletic"));
+  CHECK(LV[0].card == CARD_HILLS && LV[L_BRICK].card == CARD_BRICKS && LV[PLAY].card == CARD_PLAYGROUND);
 
   // options, names, defaults, campaign before labs, rows at the bottom, empty rows kept
   CHECK(parse("; comment before any level\n"
@@ -46,12 +49,12 @@ int main(void) {
   CHECK(parse("= 1 ok card=castle\n@ F\n###\n"
               "= 2 no flag\n@\n###\n"
               "= 3 no start\nF\n###\n"
-              "= 4 odd   music=x   colour=red  card=lava\n@ F  Z\n###\n"));
+              "= 4 odd   music=x   colour=red  card=lava\n@ F  `\n###\n"));
   CHECK(strstr(err, "mod.txt:4: level \"NO FLAG\" has no flag (F), skipped"));
   CHECK(strstr(err, "mod.txt:7: level \"NO START\" has no start (@), skipped"));
   CHECK(strstr(err, "mod.txt:10: unknown option \"colour\""));
   CHECK(strstr(err, "mod.txt:10: unknown card \"lava\""));
-  CHECK(strstr(err, "mod.txt:11: unknown tile 'Z' in column 6, left empty"));
+  CHECK(strstr(err, "mod.txt:11: unknown tile '`' in column 6, left empty"));
   mapbuild(); CHECK(NLV == 2 && PLAY == -1 && nnode == 3 && !strcmp(LV[1].name, "ODD") && LV[1].card == CARD_HILLS);
   CHECK(LV[0].card == CARD_CASTLE);
 
@@ -111,7 +114,7 @@ int main(void) {
     mapat = n; render(); tick(16);
     CHECK(!menu && lvl == node[n].lvl);
   }
-  fresh(); walk(1); CHECK(mapat == 0); render(); tick(16); CHECK(menu && scoreview); render(); tick(0); tick(16); CHECK(menu && !scoreview);
+  fresh(); walk(1); CHECK(mapat == 0); render(); tick(16); CHECK(menu && clhouse); render(); tick(0); tick(4); CHECK(menu && scoreview); render(); tick(0); tick(16); CHECK(menu && !scoreview);
   lvl = 12; load(); menu = 0;
   for (int i = 0; i < 1500 && !done; i++) tick(i % 2 ? 2 : 0);
   CHECK(done && lvl == 12);
@@ -120,7 +123,7 @@ int main(void) {
   FILE *f = fopen("assets/levels.txt", "rb");
   if (f) {
     fclose(f);
-    CHECK(readlevels("assets/levels.txt") && NLV == 5 && PLAY == 6);
+    CHECK(readlevels("assets/levels.txt") && NLV >= 5 && PLAY == NLEVEL - NSEC - 1);   // secret levels sit after the playground
     CHECK(parse(LEVELS_TXT) && !*err);
   }
   printf("PASS: %d level file checks\n", checks);

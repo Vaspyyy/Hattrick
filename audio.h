@@ -13,5 +13,7 @@ void snd_stop(int sound);                     // fade out every playing copy of 
 void snd_theme(const char *theme, int restart);   // switch to assets/music/<theme>/, or restart it
 void snd_stem(int stem, float gain, int ms);  // fade a music stem toward gain over ms
 void snd_volume(float master, int muted);     // master 0..1, smoothly applied
+void snd_pause(int paused);                   // hold the music still (the pause screen), so beat hazards stay on the beat
+void snd_filter(float amount);                // underwater low-pass over the whole mix, 0 (off) .. 1, eased in
 double snd_bah(double ahead);                  // seconds since the music's last "bah" (at playhead + ahead
                                               // seconds), or -1 when the theme has none

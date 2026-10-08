@@ -22,6 +22,16 @@ def song_preview(stems, meta):
     return limit(out), [(0, "base mix: lead, bass, percussion, bells, bah"), (L / SR, "+ fast percussion layer (running / chaining moves)"),
                         (1.5 * L / SR, "+ bell arpeggio layer (cap-jump chains)")]
 
+def extras_preview(stems, meta):
+    """Half a loop each: base mix + danger strings, base mix + secret celesta, then the bonus room remix."""
+    L = meta["samples"]; H = L // 2; base = sum(stems[k] for k in ("lead", "bass", "perc", "bells", "bah"))
+    ramp = np.clip(np.arange(H) / (1.0 * SR), 0, 1)[:, None]
+    parts = [base[:H] + stems["danger"][:H] * ramp, base[H:2 * H] + stems["secret"][H:2 * H] * ramp, stems["mallet"][:H]]
+    out = np.concatenate(parts).astype(np.float32)
+    out[-2 * SR:] *= np.linspace(1, 0, 2 * SR)[:, None]
+    return limit(out), [(0, "+ danger layer (timer under 100, or a boss near)"), (H / SR, "+ secret layer (near a moon coin not found yet)"),
+                        (2 * H / SR, "bonus room remix (marimba and glockenspiel only)")]
+
 if "music" in what or "preview" in what:
     for t in songs.THEMES:
         th = t(); out = os.path.join(music_dir, th["name"])
@@ -31,6 +41,10 @@ if "music" in what or "preview" in what:
             x, marks = song_preview(stems, meta)
             save_ogg(os.path.join(prev_dir, f"music_{th['name']}.ogg"), x)
             guide.append(f"music_{th['name']}.ogg  \"{th['title']}\" ({meta['bpm']} BPM, {len(x) / SR:.0f} s)")
+            guide += [f"  {stamp(s)}  {m}" for s, m in marks]
+            x, marks = extras_preview(stems, meta)
+            save_ogg(os.path.join(prev_dir, f"music_{th['name']}_extras.ogg"), x)
+            guide.append(f"music_{th['name']}_extras.ogg  reactive layers and the bonus room remix ({len(x) / SR:.0f} s)")
             guide += [f"  {stamp(s)}  {m}" for s, m in marks]
     for kind in ("clear", "death"):
         x = songs.jingle(kind)
