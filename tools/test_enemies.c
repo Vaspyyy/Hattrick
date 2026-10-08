@@ -85,6 +85,43 @@ int main(void) {
   for (int i = 0; i < 60 && map[30][26] == 2; i++) run(0, 1);
   CHECK(map[30][26] == 0 && k->vx < 0);
 
+  // ---- stacks: walkers placed on each other ride the bottom one; stomps take them off one at a time
+  use("= 1 tower\n"
+      "                    g\n"
+      "                    g\n"
+      "@                   g                  F\n"
+      "########################################\n"
+      "########################################\n");
+  E *g[3]; int ng = 0;
+  for (E *e = en; e < en+ne; e++) if (e->t == 1) g[ng++] = e;
+  CHECK(ng == 3);
+  for (int i = 0; i < 3; i++) for (int j = i+1; j < 3; j++) if (g[j]->y > g[i]->y) { E *t = g[i]; g[i] = g[j]; g[j] = t; }   // bottom first
+  settle(); run(0, 60);
+  CHECK(g[0]->y >> 8 == 232 && g[1]->y >> 8 == 224 && g[2]->y >> 8 == 216);
+  CHECK(g[0]->x < 160 << 8 && g[1]->x == g[0]->x && g[2]->x == g[0]->x && g[2]->vx == g[0]->vx);   // walking as one
+  place((g[2]->x >> 8) + 1, 200); hvy = 400;
+  for (int i = 0; i < 20 && g[2]->a; i++) run(0, 1);
+  CHECK(!g[2]->a && g[1]->a && g[0]->a && hvy < 0 && st != DEAD);   // only the top one
+  place(20, 229); g[0]->a = 0; run(0, 30);
+  CHECK(g[1]->a && g[1]->y >> 8 == 232);   // the bottom one gone, the next drops to the ground
+  // the cap takes out one of a stack at a time
+  use(FLAT); settle(); place(20, 229);
+  w = ADD(1, 100, 232); w->vx = 0;
+  E *w2 = ADD(1, 100, 224); w2->vx = 0;
+  run(0, 2); cst = 1; ct = 0; cxp = 100 << 8; cyp = 229 << 8; run(0, 1);
+  CHECK(w->a + w2->a == 1);
+  // a shy-walker rides a walker but keeps facing its own way; a sliding shell takes a stack apart
+  use(FLAT); settle(); place(20, 229);
+  w = ADD(1, 150, 232); w->vx = -100;
+  s = ADD(T_SHY, 150, 220); s->vx = 100;
+  run(0, 40);
+  CHECK(s->a && s->y >> 8 == 224 && iabs(s->x - w->x) < 256 && s->vx == 100 && w->x < 150 << 8);
+  k = ADD(T_SHELL, 220, 232); k->s = 2; k->vx = -640; k->u = 0;
+  for (int i = 0; i < 60 && w->a; i++) run(0, 1);
+  CHECK(!w->a);
+  for (int i = 0; i < 60 && s->a && s->y >> 8 != 232; i++) run(0, 1);
+  CHECK(!s->a || s->y >> 8 == 232);
+
   // ---- cap thief: grabs a thrown cap and keeps it until Hatrick touches it
   use(FLAT); settle(); place(40, 229); face = 1;
   E *v = ADD(T_THIEF, 80, 222); v->w = v->x;

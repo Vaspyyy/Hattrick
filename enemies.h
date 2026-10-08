@@ -83,7 +83,8 @@ static int ehero(int x, int y, int w, int h) {
   return (hvy > 0 || st == GPSLAM) && Y+11 < y + h*3/4 ? 1 : 2;
 }
 static void ebounce(int k) { hvy = k & 16 ? -1000 : -650; st = NORM; arcg = GRAV; launch = 0; cut = 0; capok = diveok = stall = 1; spin = throwt = 0; }
-static int ecap(int x, int y, int w, int h) { return cst && cst < 3 && !capstolen() && ov(cxp >> 8, cyp >> 8, 8, 5, x, y, w, h); }
+static int capone;   // the cap already hit an enemy this frame: one at a time, so it can't take out two of a stack
+static int ecap(int x, int y, int w, int h) { return !capone && cst && cst < 3 && !capstolen() && ov(cxp >> 8, cyp >> 8, 8, 5, x, y, w, h) && (capone = 1); }
 static int ekillable(const E *o) {
   return o->a && o->r == room && (o->t <= 3 || o->t == T_SHY || o->t == T_SHELL || o->t == T_THIEF || o->t == T_RIDER || o->t == T_PUFF);
 }
@@ -132,6 +133,35 @@ static void extspawn(int r, int x, int y, int c) {
     e->vx = DX[d]; e->vy = DY[d];
   }
   #undef EMPTY
+}
+
+// Stacks: walkers, crabs, shy-walkers and shell walkers (a resting shell too) land on each other's
+// heads and ride along, so a stack walks and turns with its bottom enemy. Knock one out and the ones
+// above drop down. Runs after every enemy has moved; x0 holds where the first n0 started the frame.
+static int estackable(const E *e) {
+  return e->a && e->r == room && (e->t == 1 || e->t == E_CRAB || e->t == T_SHY || (e->t == T_SHELL && e->s < 2));
+}
+static void estack(const int *x0, int n0) {
+  static E *s[MAXEN]; int n = 0;
+  for (E *e = en; e < en+ne; e++) if (estackable(e)) {   // lowest first, so a rider's base has settled
+    int i = n++; while (i > 0 && s[i-1]->y < e->y) s[i] = s[i-1], i--; s[i] = e;
+  }
+  for (int i = 1; i < n; i++) {
+    E *e = s[i]; if (e->vy <= 0) continue;   // on the ground, or on the way up
+    int bot = e->y + (8 << 8), was = bot - e->vy;
+    for (int j = 0; j < i; j++) {
+      E *o = s[j];
+      if (iabs(o->x - e->x) >= 6 << 8 || bot + (2 << 8) < o->y || was > o->y + (2 << 8) + (o->vy > 0 ? o->vy : 0)) continue;
+      int ie = e - en, io = o - en, nx = (ie < n0 ? x0[ie] : e->x) + (io < n0 ? o->x - x0[io] : 0), ny = o->y - (8 << 8);
+      nx += (o->x - nx) / 8;   // and eased onto the middle of its base
+      if (!scan(nx >> 8, ny >> 8, 8, 8, SOLID)) {   // carried along, unless that runs it into a wall
+        e->x = nx;
+        if (e->t != T_SHY && !(e->t == T_SHELL && e->s) && o->vx) e->vx = o->vx;   // a shy-walker keeps its own facing
+      }
+      e->y = ny; e->vy = 0;
+      break;
+    }
+  }
 }
 
 // Standing on a thwomp (called by hero() when no tile holds Hatrick up).
@@ -185,7 +215,7 @@ static void extenemy(E *e, int k) {
       if (e->s == 1 && ++e->w > 420) e->s = 0, e->w = 0, e->vx = X < ex ? -100 : 100;   // walks back out
     }
     if (e->u) e->u--;
-    if (ecap(ex, ey, 8, 8) && !e->u) {
+    if (!e->u && ecap(ex, ey, 8, 8)) {
       if (e->s == 0) { e->s = 1; e->vx = 0; e->w = 0; sfx(S_STOMP); addscore(100, ex+4, ey); }
       else if (e->s == 1) { e->s = 2; e->vx = (cxp >> 8)+4 < ex+4 ? 640 : -640; e->u = 14; sfx(S_STOMP); }
       e->u = e->u ? e->u : 14;

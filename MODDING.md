@@ -298,6 +298,8 @@ Cap checks: `gcc -O1 -w tools/test_cap.c -o /tmp/hatrick-cap-tests && /tmp/hatri
 
 **Thwomp (`Q`):** waits above, drops when Hatrick is underneath (fatal), sits a moment, then rises slowly. From the side it's a wall, and Hatrick can ride its top back up. Leave its 2x2 space empty.
 
+**Stacks:** walkers (`g`), crabs (`c`), shy-walkers (`u`) and shell walkers (`k`, a resting shell too) stand on each other. Put one right above another in the level file (or let one fall onto another) and it rides along: a stack walks and turns with its bottom enemy, though a shy-walker keeps facing its own way. Stomps take them off one at a time from the top; knock out a lower one (a sliding shell, the cap) and the ones above drop down. A sliding shell never carries a rider.
+
 **The beat (`Y` `Z` `$` `&`):** these follow the level's music, using `bpm` from its `music.txt` (104 if missing), counted from the moment the level (re)starts. A beat platform moves two tiles every fourth beat, back and forth, toward whichever side has two free tiles, and carries whoever stands on it. It flashes white during the beat before it moves. A piston shoots spikes into its first free side (up, left, right, then down) on beats 2 and 4 of each bar. Its stripes flash red just before. Beat fire bars jump an eighth of a turn on every beat.
 
 ## Collectibles (collect.h, collect_ui.h)
