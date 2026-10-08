@@ -1035,7 +1035,7 @@ static void kill(E *e) { e->a = 0; burst((e->x >> 8)+4, (e->y >> 8)+4, 0x9a48d0,
 
 static void enemies(int k) {
   int X = hx >> 8, Y = hy >> 8, n0 = ne;
-  static int x0[MAXEN]; for (int i = 0; i < ne; i++) x0[i] = en[i].x;   // for stacks (enemies.h)
+  static int x0[MAXEN]; capone = 0; for (int i = 0; i < ne; i++) x0[i] = en[i].x;   // for stacks (enemies.h)
   mv_slidehits();   // the slope slide runs enemies over (movement.h)
   for (E *e = en; e < en+ne; e++) {
     if (!e->a || e->r != room) continue;
@@ -1058,7 +1058,7 @@ static void enemies(int k) {
         kill(e); hvy = k & 16 ? -1000 : -650; st = NORM; arcg = GRAV; launch = 0; cut = 0; capok = diveok = stall = 1; spin = throwt = 0;
       } else die();
     }
-    if (e->a && cst && cst < 3 && !capstolen() && ov(cxp >> 8, cyp >> 8, 8, 5, ex, ey, 8, 8)) capx_enemy(e), kill(e);
+    if (e->a && ecap(ex, ey, 8, 8)) capx_enemy(e), kill(e);
   }  estack(x0, n0);
 }
 

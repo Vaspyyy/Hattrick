@@ -83,7 +83,8 @@ static int ehero(int x, int y, int w, int h) {
   return (hvy > 0 || st == GPSLAM) && Y+11 < y + h*3/4 ? 1 : 2;
 }
 static void ebounce(int k) { hvy = k & 16 ? -1000 : -650; st = NORM; arcg = GRAV; launch = 0; cut = 0; capok = diveok = stall = 1; spin = throwt = 0; }
-static int ecap(int x, int y, int w, int h) { return cst && cst < 3 && !capstolen() && ov(cxp >> 8, cyp >> 8, 8, 5, x, y, w, h); }
+static int capone;   // the cap already hit an enemy this frame: one at a time, so it can't take out two of a stack
+static int ecap(int x, int y, int w, int h) { return !capone && cst && cst < 3 && !capstolen() && ov(cxp >> 8, cyp >> 8, 8, 5, x, y, w, h) && (capone = 1); }
 static int ekillable(const E *o) {
   return o->a && o->r == room && (o->t <= 3 || o->t == T_SHY || o->t == T_SHELL || o->t == T_THIEF || o->t == T_RIDER || o->t == T_PUFF);
 }
@@ -214,7 +215,7 @@ static void extenemy(E *e, int k) {
       if (e->s == 1 && ++e->w > 420) e->s = 0, e->w = 0, e->vx = X < ex ? -100 : 100;   // walks back out
     }
     if (e->u) e->u--;
-    if (ecap(ex, ey, 8, 8) && !e->u) {
+    if (!e->u && ecap(ex, ey, 8, 8)) {
       if (e->s == 0) { e->s = 1; e->vx = 0; e->w = 0; sfx(S_STOMP); addscore(100, ex+4, ey); }
       else if (e->s == 1) { e->s = 2; e->vx = (cxp >> 8)+4 < ex+4 ? 640 : -640; e->u = 14; sfx(S_STOMP); }
       e->u = e->u ? e->u : 14;

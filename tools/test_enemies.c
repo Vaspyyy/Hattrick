@@ -104,6 +104,12 @@ int main(void) {
   CHECK(!g[2]->a && g[1]->a && g[0]->a && hvy < 0 && st != DEAD);   // only the top one
   place(20, 229); g[0]->a = 0; run(0, 30);
   CHECK(g[1]->a && g[1]->y >> 8 == 232);   // the bottom one gone, the next drops to the ground
+  // the cap takes out one of a stack at a time
+  use(FLAT); settle(); place(20, 229);
+  w = ADD(1, 100, 232); w->vx = 0;
+  E *w2 = ADD(1, 100, 224); w2->vx = 0;
+  run(0, 2); cst = 1; ct = 0; cxp = 100 << 8; cyp = 229 << 8; run(0, 1);
+  CHECK(w->a + w2->a == 1);
   // a shy-walker rides a walker but keeps facing its own way; a sliding shell takes a stack apart
   use(FLAT); settle(); place(20, 229);
   w = ADD(1, 150, 232); w->vx = -100;
