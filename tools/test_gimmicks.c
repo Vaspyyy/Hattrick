@@ -130,7 +130,7 @@ int main(void) {
   CHECK(gim_rush == 1 && !menu && lvl == gim_rushlv[0] && left == GIM_RUSHTIME);
   coins += 7; nextlevel();
   CHECK(gim_rush == 2 && lvl == gim_rushlv[1] && gim_rushcoins == 7 && left == GIM_RUSHTIME);
-  die(); run(0, 70);
+  doom(); run(0, 70);
   CHECK(!gim_rush && menu && !resumable && gim_rushfail == 1);
   // the gallery: F2 from the map starts the first lab level that isn't the playground
   prevk = 0; tick(GIM_GALLERY);

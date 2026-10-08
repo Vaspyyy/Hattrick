@@ -54,9 +54,9 @@ int main(void) {
   // ---- a death restarts a fight; a checkpoint past the arena keeps the boss beaten
   go(0, MINI_WALKER); b = find(0, MINI_WALKER); enter(b);
   stomp(b, 8, 2); CHECK(b->hp == 2);
-  die(); run(0, 70); b = find(0, MINI_WALKER); CHECK(b->on == 0 && b->hp == 3 && wd.rm[b->room][b->my - 4][b->ax0] == 0);
+  doom(); run(0, 70); b = find(0, MINI_WALKER); CHECK(b->on == 0 && b->hp == 3 && wd.rm[b->room][b->my - 4][b->ax0] == 0);
   haveck = 1; ckroom = 0; ckx = (b->ax1 + 4) << 11; cky = (b->my*8 - 3) << 8; saved = wd;
-  die(); run(0, 70); b = find(0, MINI_WALKER); CHECK(b->on == 2);
+  doom(); run(0, 70); b = find(0, MINI_WALKER); CHECK(b->on == 2);
   haveck = 0;
   // ---- Buzz Boss: the cap or a stomp; its stingers are deadly
   go(0, MINI_BUZZER); b = find(0, MINI_BUZZER); CHECK(b);
@@ -120,7 +120,14 @@ int main(void) {
   enter(b);
   { int n = 0, thrown = 0; while (b->s != 3 && n++ < 3000) { run(0, 1); for (BShot *s = bsh; s < bsh+24; s++) thrown |= s->a && s->kind == BS_SCISSORS; if (st == DEAD) place((b->ax0 + 2)*8, b->my*8 - 3); }
     CHECK(thrown && b->s == 3); }
-  stomp(b, 5, -7); CHECK(b->hp == 2);
+  for (int tries = 0; b->hp == 3 && tries < 6; tries++) {   // with hearts he lives through the scissors, so the pant can find him anywhere
+    if (tries) {                                             // (under a ledge, say): try again on the next one
+      int n = 0; while (b->s == 3 && n++ < 300) { place((b->ax0 + 2)*8, b->my*8 - 60); run(0, 1); }
+      n = 0; while (b->s != 3 && n++ < 3000) { place((b->ax0 + 2)*8, b->my*8 - 60); run(0, 1); for (BShot *s = bsh; s < bsh+24; s++) s->a = 0; }
+    }
+    stomp(b, 5, -7);
+  }
+  CHECK(b->hp == 2);
   for (int i = 0, tries = 0; i < 2 && tries < 6; tries++) {   // a stomp can glance off while he hops: try again on his next pant
     int n = 0, hp = b->hp; while (b->s != 3 && n++ < 3000) { place((b->ax0 + 2)*8, b->my*8 - 60); run(0, 1); for (BShot *s = bsh; s < bsh+24; s++) s->a = 0; }
     CHECK(b->s == 3);

@@ -262,7 +262,7 @@ To test a level without playing it, `./sim LEVEL file.tas` replays scripted inpu
 
 **Cap switches (`X`):** only the cap can hit one (head bumps and stomps do nothing). Each hit swaps red and blue: every `R` and `U` in the level (all areas) turns solid or into a dotted outline. A checkpoint remembers the state; a restart puts red back on.
 
-**Hat swap:** when the cap knocks out a walker (`g`), Hatrick wears its power: his ground pound breaks stone (`S`) as well as bricks. A buzzer (`b`, `h`) gives a flutter: press Jump again while falling and hold it to hover for a moment, once per jump. A spitter (`m`) gives seeds: every throw also lobs a seed that beats enemies and tube dwellers and smashes bricks. A hit then takes the power away instead of a life (Hatrick blinks for 1.5 s); pits and the timer still count. A death or a restart ends the power.
+**Hat swap:** when the cap knocks out a walker (`g`), Hatrick wears its power: his ground pound breaks stone (`S`) as well as bricks. A buzzer (`b`, `h`) gives a flutter: press Jump again while falling and hold it to hover for a moment, once per jump. A spitter (`m`) gives seeds: every throw also lobs a seed that beats enemies and tube dwellers and smashes bricks. A hit then takes the power away instead of a heart (Hatrick blinks for 1.5 s); pits and the timer still count. A death or a restart ends the power.
 
 **Coins and the cap:** coins the cap flies through ride home on it and count when it's caught (or when Hatrick goes into a tube). A death before then loses them.
 

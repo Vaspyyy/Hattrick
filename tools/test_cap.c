@@ -103,6 +103,8 @@ int main(void) {
   CHECK(st != DEAD && deaths == d0 && !capx_pow && capx_inv);
   die(); CHECK(st != DEAD);                         // still blinking
   run(0, 95); CHECK(!capx_inv);
+  die(); CHECK(st != DEAD && hp == MAXHP-1 && capx_inv);   // then a heart takes it
+  run(0, 95); hp = 1;
   die(); CHECK(st == DEAD && deaths == d0+1);
   load(); capx_pow = POW_HEAVY; hy = (lh*8+12) << 8; die(); CHECK(st == DEAD);
 
@@ -150,7 +152,7 @@ int main(void) {
   use("= 1 coins2\n\n@  oo         F\n###############\n");
   place(8, 31*8-11); settle(); capthrow(0, 0, 0, 0);
   for (int i = 0; i < 8; i++) capupd(32);
-  CHECK(capx_carry == 2); die(); run(0, 62); CHECK(coins == 0 && !capx_carry);
+  CHECK(capx_carry == 2); doom(); run(0, 62); CHECK(coins == 0 && !capx_carry);
 
   // ---- Up / Down bend a forward throw
   use("= 1 bend\n\n@              F\n###############\n");

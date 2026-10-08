@@ -181,8 +181,8 @@ static void slopeslide(void) {
   CHECK(!en[0].a && !en[1].a && st != DEAD && score - sc == 200 + 400);
   // Without the slide the same walker hurts.
   poundat(300); ne = 0; en[ne++] = (E){ 330 << 8, 221 << 8, -170, 0, 1, 1, 221 << 8, 0 };
-  for (int i = 0; i < 60 && st != DEAD; i++) tick(0);
-  CHECK(st == DEAD);
+  for (int i = 0; i < 60 && hp == MAXHP; i++) tick(0);
+  CHECK(hp == MAXHP-1);
 }
 
 int main(int argc, char **argv) {

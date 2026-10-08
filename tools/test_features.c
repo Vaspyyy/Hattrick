@@ -37,7 +37,7 @@ int main(void) {
   CHECK(ckroom == 0 && ckx == (5*8+1) << 8 && cky == (30*8-3) << 8);
   for (int i = 0; i < 100 && coins < 2; i++) tick(2);
   CHECK(coins == 2 && !map[30][8]);   // a coin after it
-  int t0 = tim; die(); CHECK(st == DEAD && deaths == 1);
+  int t0 = tim; doom(); CHECK(st == DEAD && deaths == 1);
   run(0, 62);
   CHECK(st == NORM && X() == 5*8+1 && coins == 1 && score == 100 && map[30][8] == 6 && !map[30][2]);
   CHECK(tim == t0 + 62 && wd.ck[0].up == 20);   // the run timer kept going; the banner stays up
@@ -118,10 +118,10 @@ int main(void) {
       "@   *~~~~       F\n"
       "\n"
       "#################\n");
-  fr = 0; place(4*8+4+2*8-3, 29*8+4-5); hazards(); CHECK(st == DEAD);     // on an ember of the arm
+  fr = 0; place(4*8+4+2*8-3, 29*8+4-5); hazards(); CHECK(hp == MAXHP-1);  // on an ember of the arm
   load(); fr = 0; place(4*8+4-24, 29*8+4-5); hazards(); CHECK(st == NORM);  // behind the pivot
   fr = 240*128/273 - 1; while (((LV[0].bar[0].a0*256 + LV[0].bar[0].speed*fr) >> 8 & 255) != 128) fr++;
-  hazards(); CHECK(st == DEAD);                                          // half a turn later it points there
+  hazards(); CHECK(hp == MAXHP-1);                                       // half a turn later it points there
 
   // ---- tube dwellers: rise on a timer, stay in while Hatrick is near, only the cap beats them
   use("= 1 dw\n"
@@ -135,7 +135,7 @@ int main(void) {
   run(0, 90); CHECK(wd.dw[0].phase == 0 && wd.dw[0].ofs == 0);
   place(11*8-6, 31*8-11); run(0, 200); CHECK(wd.dw[0].phase == 0);     // right next to the tube
   place(0, 31*8-11); while (wd.dw[0].phase != 2) tick(0);
-  place(11*8+5, 29*8-11-8); hvy = 300; run(0, 3); CHECK(st == DEAD);   // landing on it doesn't stomp
+  place(11*8+5, 29*8-11-8); hvy = 300; run(0, 3); CHECK(hp == MAXHP-1);   // landing on it doesn't stomp
   load(); place(0, 31*8-11); while (wd.dw[0].phase != 2) tick(0);
   cst = 1; ckind = CAPFORWARD; cxp = (11*8+4) << 8; cyp = (29*8-8) << 8; cvx = 0; cready = 0;
   hazards(); CHECK(!wd.dw[0].a && score == 500);
@@ -199,7 +199,7 @@ int main(void) {
   run(0, 62); CHECK(st == NORM && left >= LIMIT - 2 && !timeout);    // from the top, with a full timer
   for (int i = 0; i < 100 && !haveck; i++) tick(2);
   CHECK(haveck);
-  left = 9000; die(); run(0, 62); CHECK(st == NORM && left > 9000 - 70 && left < 9000);   // a checkpoint keeps the time left
+  left = 9000; doom(); run(0, 62); CHECK(st == NORM && left > 9000 - 70 && left < 9000);   // a checkpoint keeps the time left
   left = 1; tick(0); CHECK(st == DEAD && timeout);
   run(0, 62); CHECK(st == NORM && X() == 5*8+1 && left >= LIMIT - 2);  // ...unless it ran out
   CHECK(parse("= 1 old par=90\n@ F\n###\n") && strstr(err, "par= is no longer used"));
@@ -220,12 +220,12 @@ int main(void) {
   CHECK(LV[0].nmoon == 3 && LV[0].moon[2].room == 1 && LV[0].moon[0].x == 2 && LV[0].moon[1].x == 9 && !map[30][2]);
   for (int i = 0; i < 60 && !wd.moongot; i++) tick(2);
   CHECK(wd.moongot == 1 && score == 2000);
-  die(); run(0, 62); CHECK(!wd.moongot && score == 0);                 // lost: no checkpoint yet
+  doom(); run(0, 62); CHECK(!wd.moongot && score == 0);                 // lost: no checkpoint yet
   for (int i = 0; i < 100 && !haveck; i++) tick(2);
   CHECK(haveck && wd.moongot == 1);
   for (int i = 0; i < 100 && wd.moongot != 3; i++) tick(2);
   CHECK(wd.moongot == 3);
-  die(); run(0, 62); CHECK(wd.moongot == 1);                           // the checkpoint kept the first
+  doom(); run(0, 62); CHECK(wd.moongot == 1);                           // the checkpoint kept the first
   for (int i = 0; i < 200 && st != WIN; i++) tick(2);
   CHECK(st == WIN && moonbits(0) == 3);                                // the two from this visit count
   nprog = 0; progload(); CHECK(nprog == 1 && moonbits(0) == 3 && cleared(0) && !strcmp(prog[0].name, "MOONY"));
@@ -280,5 +280,23 @@ int main(void) {
   CHECK(strstr(err, "unknown room option \"bg=lava\""));
   CHECK(strstr(err, "'@' belongs in the level's main area") && strstr(err, "'F' belongs in the level's main area"));
   CHECK(parse("= 1 lonely\n@ 44   F\n  ||\n#######\n") && strstr(err, "tube 4 has no partner"));
+  // ---- hearts: three, a hit costs one and Hatrick blinks; any checkpoint fills them; pits, the timer and doom ignore them
+  use("= 1 hearts\n"
+      "@   K               K   F\n"
+      "#########################\n");
+  CHECK(hp == MAXHP);
+  die(); CHECK(st != DEAD && hp == 2 && capx_inv && deaths == 0);
+  die(); CHECK(hp == 2);                                     // blinking: no harm
+  run(0, 95); die(); CHECK(hp == 1 && st != DEAD);
+  for (int i = 0; i < 100 && !haveck; i++) tick(2);
+  CHECK(haveck && hp == MAXHP);                              // a new checkpoint fills them
+  run(0, 95); die(); CHECK(hp == 2);
+  place(4*8, 31*8-11); run(0, 2); CHECK(hp == MAXHP);       // so does one already raised
+  run(0, 95); hp = 1; die(); CHECK(st == DEAD && hp == 0 && deaths == 1);   // the last one is a death
+  run(0, 62); CHECK(st == NORM && hp == MAXHP);              // back at the checkpoint, full
+  place(12*8, 31*8-11); run(0, 2); die(); run(0, 2); CHECK(hp == 2);
+  hy = (lh*8+12) << 8; die(); CHECK(st == DEAD);             // a pit ignores them
+  load(); CHECK(hp == MAXHP); doom(); CHECK(st == DEAD);     // so do lava, squeezes and the rest
+  load(); left = 1; tick(0); CHECK(st == DEAD && timeout);   // and the timer
   printf("PASS: %d feature checks\n", checks);
 }
