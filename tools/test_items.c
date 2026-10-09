@@ -109,7 +109,7 @@ int main(void) {
   settle(); CHECK(gnd && !it_ajump);
   // during an air throw's stall it still lifts Hatrick
   run(16, 6); run(0, 2); CHECK(!gnd); tap(32); CHECK(throwt);
-  y0 = Y(); tick(16); tick(0); CHECK(it_ajump && Y() < y0 && hvy < 0);
+  y0 = Y(); tick(16); CHECK(cut == 1 && jn == -1 && arcg == GRAV); tick(0); CHECK(it_ajump && Y() < y0 && hvy < 0);
   for (int i = 0; i < 60 && cst; i++) tick(0);
   settle();
   hit(); CHECK(hp == 2 && !it_shoes);
