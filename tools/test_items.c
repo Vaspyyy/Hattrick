@@ -42,6 +42,10 @@ int main(void) {
   place(8, 31*8-11); settle();
   coins = 12; lcoins = 2; hx = (gx*8-3) << 8; hy = (gy*8-12) << 8; hvx = 300; tick(2);
   CHECK(st == WIN && it_bank == 10);
+  // coins still on the thrown cap at the flag are banked too
+  use(FLAT); it_bank = 0; place(8, 31*8-11); settle();
+  coins = 5; capx_carry = 1; hx = (gx*8-3) << 8; hy = (gy*8-12) << 8; hvx = 300; tick(2);
+  CHECK(st == WIN && it_bank == 6);
   // the shop: Down in the house; Jump buys what the bank can pay for
   menu = 1; resumable = 0; clhouse = 1; it_shop = 0; prevk = 0;
   tap(8); CHECK(it_shop);

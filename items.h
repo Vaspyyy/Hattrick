@@ -124,8 +124,9 @@ static void it_save(void) {
 static void it_need(void) { if (!it_read) it_load(); }
 // touchflag(): the coins of this visit go into the bank.
 static void it_clear(void) {
-  if (!cl_record(lvl) || coins <= lcoins) return;
-  it_need(); it_bank += coins - lcoins; if (it_bank > 99999) it_bank = 99999;
+  int got = coins + capx_carry - lcoins;   // coins still riding home on the cap count too
+  if (!cl_record(lvl) || got <= 0) return;
+  it_need(); it_bank += got; if (it_bank > 99999) it_bank = 99999;
   it_save();
 }
 
