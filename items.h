@@ -81,10 +81,14 @@ static int it_airjump(void) {
 }
 // capupd(): the boomerang cap. A new throw goes out again; at the far end (or a wall) the cap turns
 // around and flies straight home, still a thrown cap that knocks out what it meets.
-static void it_captick(void) { if (cst == 1 && !it_pcst) it_boomback = 0; it_pcst = cst; }
-static int it_boomturn(void) { if (!it_boom || it_boomback || capextend) return 0; it_boomback = 1; return 1; }
+static int it_pext;   // capextend last frame
+static void it_captick(void) {   // a new throw, or an extended one (cap pressed again), flies out again first
+  if ((cst == 1 && !it_pcst) || (capextend && !it_pext)) it_boomback = 0;
+  it_pcst = cst; it_pext = capextend;
+}
+static int it_boomturn(void) { if (!it_boom || it_boomback) return 0; it_boomback = 1; return 1; }
 static int it_boomhome(void) {
-  if (!it_boomback || capextend) return 0;
+  if (!it_boomback) return 0;
   int dx = hx + 256 - cxp, dy = hy + (duck+3)*256 - cyp, m = iabs(dx) > iabs(dy) ? iabs(dx) : iabs(dy);
   if (m < 1024) { cst = 0; catcht = 10; it_boomback = 0; sfx(S_CATCH); return 1; }
   cxp += dx * 900 / m; cyp += dy * 900 / m;

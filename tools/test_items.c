@@ -91,6 +91,13 @@ int main(void) {
   E *w = en + ne++; *w = (E){ ((cxp >> 8) - 30) << 8, 31*8-8 << 8, 0, 0, 1, 1, 31*8-8 << 8, 0 };
   for (int i = 0; i < 60 && w->a; i++) tick(0);
   CHECK(!w->a);
+  // an extended throw (cap pressed again in flight) still turns and comes home
+  use(FLAT); it_boom = 1; place(8, 31*8-11); settle();
+  tap(32); run(0, 4); CHECK(cst == 1); tap(32); CHECK(capextend);
+  for (int i = 0; i < 120 && !it_boomback && cst; i++) tick(0);
+  CHECK(it_boomback && cst == 1);
+  for (int i = 0; i < 120 && cst; i++) { CHECK(cst == 1); tick(0); }
+  CHECK(!cst);
 
   // ---- gold cap: nothing hurts, enemies run into are knocked out, then it wears off
   use(FLAT); place(8, 31*8-11); settle(); give(IT_GOLD); CHECK(!it_use(IT_GOLD) && it_gold == IT_GOLDT);
