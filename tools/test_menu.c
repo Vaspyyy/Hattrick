@@ -41,7 +41,7 @@ int main(void) {
   fresh();clearall();score=900;tim=50;mapat=3;tick(16);CHECK(lvl==2 && score==900 && tim>=50);
   fresh();score=900;tick(16);CHECK(lvl==0 && !score && !tim);
   // The pause screen: Start, Esc, controller B and the cap button resume.
-  fresh();clearall();mapat=3;tick(START);CHECK(!menu && lvl==2);
+  fresh();clearall();mapat=3;tick(16);CHECK(!menu && lvl==2);
   tick(0);tick(START);CHECK(menu && resumable && pausesel==0);tick(START);CHECK(menu); // held Start doesn't bounce between modes
   tick(0);tick(START);CHECK(!menu && lvl==2);
   tick(0);tick(BACK);CHECK(menu);tick(0);tick(MENUBACK);CHECK(!menu);
@@ -59,8 +59,8 @@ int main(void) {
   for(int i=0;i<30;i++)tick(0);
   CHECK(hx==x && hy==y && cxp==capx && cyp==capy && tim==time && fr==frame && st==state && coins==7 && deaths==3 && left==left0);
   tick(32);CHECK(!menu && hx==x && hy==y && tim==time && coins==7);
-  // Down picks "exit to map": back on the map at this level's stop.
-  tick(0);tick(BACK);tick(0);tap(8);CHECK(pausesel==1);tap(8);CHECK(pausesel==0);tap(4);CHECK(pausesel==1);
+  // Down twice picks "exit to map" (items are in between): back on the map at this level's stop.
+  tick(0);tick(BACK);tick(0);tap(8);CHECK(pausesel==1);tap(8);CHECK(pausesel==2);tap(8);CHECK(pausesel==0);tap(4);CHECK(pausesel==2);
   tick(16);CHECK(menu && !resumable && mapat==3);
   // Clearing a level for the first time comes back to the map with the next path opening.
   fresh();tick(16);CHECK(lvl==0);

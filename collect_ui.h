@@ -158,6 +158,10 @@ static void mstar(int x, int y, int r, u32 c) {   // a five-pointed star, menu p
   }
 }
 static void cl_houserender(void);
+static int it_shop;
+static int it_shoptick(int k, int pr);
+static void it_openshop(void);
+static void it_shoprender(void);
 static void cl_maprender(void) {
   if (clhouse) { cl_houserender(); return; }
   if (naming || scoreview) return;
@@ -193,7 +197,9 @@ static void cl_house(void) { clhouse = 1; clsel = clhat; clnav = 0; clrep = 18; 
 static int cl_maptick(int k, int pr) {   // the house screen takes the input while it is open
   if (!clhatread) clhatread = 1, cl_hatload();
   if (!clhouse) return 0;
+  if (it_shop) return it_shoptick(k, pr);   // items.h: the shop
   if (pr & (32|BACK|MENUBACK)) { clhouse = 0; sfx(S_MENUBACK); return 1; }
+  if (pr & 8) { it_openshop(); return 1; }   // down: the shop
   if (pr & 4) { clhouse = 0; scoreview = 1; hinew = -1; hiload(); sfx(S_MENUOK); return 1; }   // up: the high scores
   if (pr & (16|START)) {
     if (cl_hatopen(clsel)) { cl_wear(clsel); cl_hatsave(); sfx(S_CATCH); } else sfx(S_MENUBACK);
@@ -233,6 +239,7 @@ static void cl_portrait(int x, int y) {   // the Haberdasher, framed: the boss o
   mrect(x+14, y+44, 16, 3, 0x6a3a1a);
 }
 static void cl_houserender(void) {
+  if (it_shop) { it_shoprender(); return; }   // items.h
   static const u32 PAPER[] = { 0xf4e6c8, 0xdcefc8, 0xf0d0b0, 0xf8e8b0, 0xd0e4f8, 0xd8d0e8, 0xc8e8e0, 0xe8f4ff, 0xffe0ec, 0xf0e0c0 };
   char t[64];
   ox = oy = 0;
@@ -285,5 +292,5 @@ static void cl_houserender(void) {
   if (cl_hatopen(clsel)) snprintf(t, sizeof t, "%s%s%s", HATS[clsel].name, *perk ? " - " : "", perk);
   else snprintf(t, sizeof t, "ALL MOONS IN %d %s", clsel, LV[clsel-1].name);
   centered(t, 356, 1, cl_hatopen(clsel) ? 0xffd894 : 0xc8d4dc);
-  centered("JUMP: WEAR   UP: HIGH SCORES", 390, 1, 0x8a94a0);
+  centered("JUMP: WEAR   UP: SCORES   DOWN: SHOP", 390, 1, 0x8a94a0);
 }

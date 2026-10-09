@@ -2,9 +2,9 @@
 
 Run `./build.sh` to build, then `./hatrick` to play. Restart the game to load a newly built executable. The game loads its levels, music, sounds and any replacement art from `assets/` next to the executable at startup; all of them can be edited or swapped for your own, see [MODDING.md](MODDING.md). `./hatrick --silent` runs without touching the speakers; `--dump out.wav` additionally records the mix.
 
-The game opens on the overworld: an island with Hatrick's house, one stop per level along a path, and the movement playground below the house. Walk along the paths with the arrows or the controller stick/D-pad (hold a direction to keep walking), then Enter, Z/Space, controller A, or Start to play the stop you stand on. Clicking a stop with the mouse walks there; clicking Hatrick's stop enters it. A level's stop opens once the one before it is cleared (red: open, gold: cleared, grey: locked); the house shows the high-score table. After a level Hatrick is back on the map; the first clear opens the path to the next stop. Starting level 1 begins a new run (score and time from zero); later levels carry the run on. Esc or Q on the map quits.
+The game opens on the overworld: an island with Hatrick's house, one stop per level along a path, and the movement playground below the house. Walk along the paths with the arrows or the controller stick/D-pad (hold a direction to keep walking), then Enter, Z/Space or controller A to play the stop you stand on. Controller Start (Tab on the keyboard) opens the quick level select: a list of home, every level open so far (and secret levels found) and the playground, with each level's moon coins and star. Up/Down pick (Left/Right jump a page), Jump or Start takes Hatrick straight to that stop, and the cap button or Esc closes the list. Clicking a stop with the mouse walks there; clicking Hatrick's stop enters it. A level's stop opens once the one before it is cleared (red: open, gold: cleared, grey: locked); the house shows the high-score table. After a level Hatrick is back on the map; the first clear opens the path to the next stop. Starting level 1 begins a new run (score and time from zero); later levels carry the run on. Esc or Q on the map quits.
 
-During play, Esc or controller Start opens the pause screen and pauses the entire level. Switching to another window also pauses; keyboard and controller input are ignored while Hatrick is unfocused. Esc, X/C, controller B, or choosing CONTINUE resumes without reloading; EXIT TO MAP (Down, then Enter/Jump) goes back to the overworld. The mouse can pick either. Q quits from anywhere. M / controller View toggles sound.
+During play, Esc or controller Start opens the pause screen and pauses the entire level. Switching to another window also pauses; keyboard and controller input are ignored while Hatrick is unfocused. Esc, X/C, controller B, or choosing CONTINUE resumes without reloading; ITEMS opens the item bag (see below); EXIT TO MAP (Down twice, then Enter/Jump) goes back to the overworld. The mouse can pick any of them. Q quits from anywhere. M / controller View toggles sound.
 
 | Action | Keyboard |
 | --- | --- |
@@ -47,6 +47,8 @@ During play, Esc or controller Start opens the pause screen and pauses the entir
 | Gimmick gallery | F2 plays the gimmick lab levels one after another |
 | Coin rush | F3 on the map: three levels, 100 s each, coins only |
 | Pause / resume | Esc; X or C also resumes from the pause screen |
+| Quick level select | Tab or controller Start on the map |
+| Use an item | Pause, ITEMS, pick one, Jump |
 | Restart / mute / quit | R / M / Q |
 | Volume | + / − (or keypad + / −), ten steps |
 
@@ -68,6 +70,8 @@ Focused movement checks: `gcc -O1 -w tools/test_movement.c -o /tmp/hatrick-movem
 
 Audio check (private Xvfb, records the mix through the silent device): `python3 tools/test_audio.py`.
 
+Item, shop and level select checks: `gcc -O1 -w tools/test_items.c -o /tmp/hatrick-item-tests && /tmp/hatrick-item-tests`.
+
 Focused map and pause checks: `gcc -O1 -w tools/test_menu.c -o /tmp/hatrick-menu-tests && /tmp/hatrick-menu-tests`. Native keyboard/mouse map playtest and screenshot capture: `python3 tools/test_menu_native.py`.
 
 Level file checks (levels.txt parsing, error reports, the map with many levels): `gcc -O1 -w tools/test_levels.c -o /tmp/hatrick-level-tests && /tmp/hatrick-level-tests`.
@@ -80,6 +84,23 @@ Level proofs: `tas/1.tas` to `tas/5.tas` beat each level in the simulator, and `
 
 Cap mechanics (see MODDING.md, "Cap objects"): holding Up or Down while a forward throw flies bends it up or down. A cap stuck on a cap post is a platform for 2 s, and pressing a cap button while it's there pulls Hatrick to it. After the cap knocks out a walker, buzzer or spitter, Hatrick wears its power until he is hit: a stone-breaking ground pound, a flutter (press Jump while falling and hold it), or seeds lobbed with each throw.
 
+## Items and the shop
+
+Coins now buy things. The coins picked up in a level go into a bank when Hatrick reaches its flag (leaving from the pause screen banks nothing, and only campaign and secret levels count). In Hatrick's house, Down opens the shop: Left/Right/Up/Down pick an item, Jump buys one, the cap button goes back. Up to 9 of each fit in the bag. During a level, pause and choose ITEMS: pick one and press Jump to use it, and the game goes straight back on. The items that are on show as small icons under the coin count.
+
+| Item | Price | What it does |
+|---|---|---|
+| Heart pie | 30 | A 4th heart (and one heart back now). Checkpoints refill all four. Gone when Hatrick goes down |
+| Feather cap | 40 | Hold Jump while falling to glide down slowly; the buzzer's flutter lasts twice as long. Lasts the rest of the level |
+| Boomerang cap | 50 | The cap flies twice as far, turns around and comes straight back, knocking out what it meets both ways (bosses included). Lasts the rest of the level |
+| Gold cap | 80 | 10 seconds where nothing hurts Hatrick and enemies he runs into are knocked out; the music runs fast. Pits, lava and the timer still count |
+| Spring shoes | 40 | One more jump in the air each time Hatrick leaves the ground. Lost when a hit costs a heart, or when he goes down |
+| Magnet | 30 | Coins within three tiles and moon coins close by come to Hatrick. Lasts the rest of the level |
+| Egg buddy | 40 | An egg follows Hatrick and takes the next hit for him, then breaks. Gone when he goes down |
+| Flag | 25 | Plants a checkpoint where Hatrick stands (on the ground, outside boss arenas). A death comes back to it |
+
+The bank and the bag are saved in `~/.hatrick_items`.
+
 ## Hatrick's house and collectibles
 
-Entering the house on the map opens Hatrick's home: a room for every level cleared (trophies, postcards, boss portraits) and the cap rack. Left/Right pick a cap, Jump (Enter, Z/Space, controller A) wears it if it is on the rack, Up shows the high-score table, and the Cap button or Esc goes back to the map. A cap joins the rack when every moon coin of its level is home. Under the map's banner each level shows its star time and whether its postcard was found; a star by the stop marks a level with all moon coins and a clear inside the star time. A red pennant is a secret exit: it opens a hidden path on the map to a secret level.
+Entering the house on the map opens Hatrick's home: a room for every level cleared (trophies, postcards, boss portraits) and the cap rack. Left/Right pick a cap, Jump (Enter, Z/Space, controller A) wears it if it is on the rack, Up shows the high-score table, Down opens the shop, and the Cap button or Esc goes back to the map. A cap joins the rack when every moon coin of its level is home. Under the map's banner each level shows its star time and whether its postcard was found; a star by the stop marks a level with all moon coins and a clear inside the star time. A red pennant is a secret exit: it opens a hidden path on the map to a secret level.

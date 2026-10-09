@@ -674,3 +674,8 @@ static void bossdraw(void) {
     break;
   }
 }
+// items.h: is x (px) inside a boss arena of this area? (no flag can be planted there)
+static int bossinarena(int x) {
+  for (Boss *b = bz; b < bz + nbz; b++) if (b->room == room && x >= b->ax0*8 && x < (b->ax1+1)*8) return 1;
+  return 0;
+}
