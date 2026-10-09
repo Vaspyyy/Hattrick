@@ -73,7 +73,7 @@ static void it_glide(int k) {
 // hero(), a new Jump press in the air: the spring shoes' extra jump.
 static int it_airjump(void) {
   if (!it_shoes || it_ajump || !freemove() || mv_swim) return 0;
-  it_ajump = 1; jbuf = 0; st = NORM; hvy = -960; arcg = GRAV; cut = 1; jn = -1; launch = 0; posture(0);
+  it_ajump = 1; jbuf = 0; throwt = twirl = 0; st = NORM; hvy = -960;   // ends an air-throw stall arcg = GRAV; cut = 1; jn = -1; launch = 0; posture(0);
   SPIN(30, face); sfx(S_SPRING); rumble(1);
   for (int i = 0; i < 6; i++) part(hx + (3 << 8), hy + (11 << 8), (i-3)*90, 140, 14, 0, 0xffe066);
   return 1;
