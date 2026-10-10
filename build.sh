@@ -18,7 +18,7 @@ gcc -O2 -Wall -Wno-unused-function -Wno-parentheses -Wno-sign-compare -Wno-char-
 # the game and the sim are independent, so compile them at the same time
 gcc $OPT -w hatrick.c audio.o vendor/miniaudio.o vendor/stb_image.o -o hatrick -lX11 -lm -lpthread -ldl &
 game=$!
-gcc $OPT -DSIM -DSC=1 -w hatrick.c -o sim
+gcc $OPT -DSIM -DSC=1 -w hatrick.c -o sim || { wait $game; exit 1; }   # never leave the game compile running
 wait $game
 ./sim --check || true   # level file problems, if any
 ls -l hatrick
