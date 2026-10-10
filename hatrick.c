@@ -67,7 +67,7 @@ static int lw, gx, gy, gb;   // level width, flag column / top row, pixel row wh
 static int hx, hy, hvx, hvy, face, st, stt, gnd, jn, landt, capok, diveok, stall, wall, coy, jbuf, lock, spin, cut, skid;
 static int cst, cxp, cyp, cvx, cvy, ct, cready, ckind, throwt, oldhy;
 static int duck, catcht, catchok, twirl, gpspin, rollbuf;
-static int arcg, runt, rundir, launch, boostt, capbuf, capkeys, capextend, capreflect, capaimok;
+static int arcg, runt, rundir, launch, boostt, capbuf, capkeys, capextend, capreflect;
 static int ledget, climbx, climby, slopedir, poundt;
 static int lvl, deaths, coins, lcoins, tim, shake, done, prevk, fr, capless, capoff;
 static int menu, menufr, menunav, menurepeat, resumable, quitting;   // menu: the map (resumable 0) or the pause screen
@@ -459,7 +459,7 @@ static void longjump(void) {
 }
 static void capthrow(int k, int downthrow, int rolling, int takeoff) {
   ckind = k & 4 ? CAPUP : downthrow || st == GPLAND ? CAPDOWN : st == SPINJ || st == GSPIN ? CAPSPIN : CAPFORWARD;
-  cst = 1; ct = cready = capextend = capreflect = 0; cvx = cvy = 0; capaimok = gnd;   // capaim(): ground throws only
+  cst = 1; ct = cready = capextend = capreflect = 0; cvx = cvy = 0;
   cxp = hx - 256 + face*(9 << 8); cyp = hy + (duck+3)*256;
   if (ckind == CAPUP) cxp = hx + 256, cyp = hy + (duck-6)*256, cvy = -1100;
   else if (downthrow) cxp = hx + 256, cyp = hy + (13 << 8), cvy = 1100;
@@ -1012,26 +1012,6 @@ static void hero(int k, int pr) {
   else if (st < TUBE && !lock) tubecheck(k, dir, X, Y, vy0);
 }
 
-// Aim assist: a forward throw drifts up or down toward the nearest enemy it can knock out, if
-// that enemy is ahead within CAPAIM_RANGE px and inside a cone about 27 degrees wide either way.
-// The drift is at most CAPAIM_PULL/256 px a frame, so a throw that is well off still misses.
-// Only throws made on the ground home in: a throw in the air is usually a cap jump, and moving
-// the cap there would move the platform. Bent throws (Up / Down) and the aimed second throw are
-// left alone too. Thieves (they'd take it) and shy-walkers (they turn to block it) are no targets.
-#define CAPAIM_RANGE 72
-#define CAPAIM_PULL 128
-static void capaim(void) {
-  if (!capaimok || ckind != CAPFORWARD || capextend || capx_bend || !cvx || cvy) return;
-  int dir = cvx > 0 ? 1 : -1, cx = (cxp >> 8)+4, cy = (cyp >> 8)+2, best = -1, ty = 0;
-  for (E *e = en; e < en+ne; e++) if (ekillable(e) && e->t != T_THIEF && e->t != T_SHY) {
-    int ax = ((e->x >> 8)+4 - cx)*dir, ay = (e->y >> 8)+4 - cy, d = ax*ax + ay*ay;
-    if (ax >= 4 && ax <= CAPAIM_RANGE && iabs(ay) <= ax/2 + 4 && (best < 0 || d < best)) best = d, ty = ay;
-  }
-  if (!ty) return;
-  int step = ty*64; if (step > CAPAIM_PULL) step = CAPAIM_PULL; if (step < -CAPAIM_PULL) step = -CAPAIM_PULL;
-  if (!scan(cxp >> 8, (cyp + step) >> 8, 8, 4, SOLID)) cyp += step;
-}
-
 static void capupd(int k) {
   if (capx_tick(k)) return;
   it_captick();
@@ -1043,7 +1023,6 @@ static void capupd(int k) {
     if (ct >= 24) cst = 3;
   } else if (cst == 1 && it_boomhome()) {   // items.h: the boomerang cap flying home
   } else if (cst == 1) {
-    capaim();
     int nx = cxp + cvx, ny = cyp + cvy, slow = it_capslow();
     if (scan(nx >> 8, ny >> 8, 8, 4, SOLID)) {
       if (capreflect && cvx) { cvx = -cvx; capreflect = 0; }
