@@ -1,4 +1,4 @@
-// Checks for items.h (the coin bank, the shop, the pause screen's bag and the eight items) and
+// Checks for items.h (the coin bank, the shop, the pause screen's bag and the nine items) and
 // travel.h (the quick level select on the map).
 // gcc -O1 -w tools/test_items.c -o /tmp/hatrick-item-tests && /tmp/hatrick-item-tests   (from the game folder)
 #define SIM
@@ -52,8 +52,11 @@ int main(void) {
   tap(8); CHECK(it_shop);
   it_shopsel = IT_PIE; tap(16); CHECK(it_have[IT_PIE] == 0 && it_bank == 10);   // 30 coins: too dear
   it_bank = 100; tap(16); CHECK(it_have[IT_PIE] == 1 && it_bank == 70);
-  tap(2); CHECK(it_shopsel == IT_FEATHER); tap(8); CHECK(it_shopsel == IT_MAGNET); tap(4); CHECK(it_shopsel == IT_FEATHER);
-  tap(1); tap(1); CHECK(it_shopsel == IT_FLAG);
+  tap(2); CHECK(it_shopsel == IT_FEATHER); tap(8); CHECK(it_shopsel == IT_EGG); tap(4); CHECK(it_shopsel == IT_FEATHER);
+  tap(1); tap(1); CHECK(it_shopsel == IT_HEAL);   // wraps around
+  it_shopsel = IT_SHOES; tap(8); CHECK(it_shopsel == IT_HEAL); tap(8); CHECK(it_shopsel == IT_GOLD);   // Down from the top row's end, and back by column
+  it_shopsel = IT_PIE; tap(4); CHECK(it_shopsel == IT_MAGNET); it_shopsel = IT_HEAL;
+  it_bank = 25; tap(16); CHECK(it_have[IT_HEAL] == 1 && it_bank == 5);   // 20 coins
   tap(32); CHECK(!it_shop && clhouse); tap(32); CHECK(!clhouse);
   it_have[IT_FLAG] = IT_MAX; it_shop = 1; it_shopsel = IT_FLAG; it_bank = 100; clhouse = 1; tap(16);
   CHECK(it_have[IT_FLAG] == IT_MAX && it_bank == 100);   // a full bag
@@ -150,6 +153,13 @@ int main(void) {
   for (int i = 0; i < 70 && st == DEAD; i++) tick(0);
   CHECK(st != DEAD && hx == fx && hy == fy);
   hvy = -300; gnd = 0; give(IT_FLAG); CHECK(it_use(IT_FLAG) && it_have[IT_FLAG]);   // in the air: no
+
+  // ---- full heal: every heart back at once, the pie's 4th too; not with full hearts
+  use(FLAT); place(8, 31*8-11); settle(); memset(it_have, 0, sizeof it_have);
+  give(IT_HEAL); CHECK(it_use(IT_HEAL) && it_have[IT_HEAL] == 1 && hp == 3);   // already full: kept
+  hit(); hit(); CHECK(hp == 1); CHECK(!it_use(IT_HEAL) && hp == 3 && healt && !it_have[IT_HEAL]);
+  give(IT_PIE); CHECK(!it_use(IT_PIE) && hp == 4); hit(); hit(); hit(); CHECK(hp == 1);
+  give(IT_HEAL); pauseuse(IT_HEAL); CHECK(!menu && !it_bag && hp == 4 && it_pie && !it_have[IT_HEAL]);
 
   // ---- the quick level select: Start on the map opens the list; Jump goes there
   builtinlevels(); nprog = 0; for (int i = 0; i < 4; i++) progkeep(i, 8);
