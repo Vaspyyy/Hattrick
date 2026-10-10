@@ -54,7 +54,7 @@ int main(void) {
   it_bank = 100; tap(16); CHECK(it_have[IT_PIE] == 1 && it_bank == 70);
   tap(2); CHECK(it_shopsel == IT_FEATHER); tap(8); CHECK(it_shopsel == IT_EGG); tap(4); CHECK(it_shopsel == IT_FEATHER);
   tap(1); tap(1); CHECK(it_shopsel == IT_HEAL);   // wraps around
-  it_shopsel = IT_SHOES; tap(8); CHECK(it_shopsel == IT_HEAL); tap(8); CHECK(it_shopsel == IT_SHOES);   // Down from the top row's end
+  it_shopsel = IT_SHOES; tap(8); CHECK(it_shopsel == IT_HEAL); tap(8); CHECK(it_shopsel == IT_GOLD);   // Down from the top row's end, and back by column
   it_shopsel = IT_PIE; tap(4); CHECK(it_shopsel == IT_MAGNET); it_shopsel = IT_HEAL;
   it_bank = 25; tap(16); CHECK(it_have[IT_HEAL] == 1 && it_bank == 5);   // 20 coins
   tap(32); CHECK(!it_shop && clhouse); tap(32); CHECK(!clhouse);
