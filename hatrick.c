@@ -2395,19 +2395,23 @@ static int padkeys(void) {
     typeof(pad[0]) *p = pad + j;
     if (!p->fd) continue;
     ssize_t n;
-    while ((n = read(p->fd-1, ev, sizeof ev)) > 0)
-      for (struct input_event *e = ev; e < ev + n / sizeof *ev; e++) {
-        if (e->type == EV_KEY) for (int i = 0; i < sizeof PADB/sizeof *PADB; i++) { if (PADB[i] == e->code) p->held = e->value ? p->held | 1 << i : p->held & ~(1 << i); }
-        if (e->type == EV_ABS) {
-          if (e->code == ABS_X) p->x = e->value;
-          if (e->code == ABS_HAT0X) p->hx = e->value;
-          if (e->code == ABS_Y) p->y = e->value;
-          if (e->code == ABS_HAT0Y) p->hy = e->value;
-          if (e->code == p->c1) p->t1 = e->value;
-          if (e->code == p->c2) p->t2 = e->value;
-        }
-      }
+    while ((n = read(p->fd-1, ev, sizeof ev)) > 0) {}   // only drained (and to notice unplugging)
     if (n == 0 || errno != EAGAIN) { close(p->fd-1); p->fd = 0; continue; }   // unplugged
+    // The held buttons and axes are asked from the kernel each frame instead of followed from
+    // events: when its event queue overflows (a pad sending 1000 reports a second, a slow frame,
+    // the window in the background) it drops events, and a lost release of Down or a trigger
+    // left Hatrick crouching until it was pressed again.
+    u8 keys[KEY_MAX/8 + 1] = { 0 };
+    struct input_absinfo ai;
+    if (ioctl(p->fd-1, EVIOCGKEY(sizeof keys), keys) >= 0) {
+      p->held = 0;
+      for (int i = 0; i < sizeof PADB/sizeof *PADB; i++) if (BIT(keys, PADB[i])) p->held |= 1 << i;
+    }
+#define ABSV(code, v) if (ioctl(p->fd-1, EVIOCGABS(code), &ai) >= 0) v = ai.value
+    ABSV(ABS_X, p->x); ABSV(ABS_Y, p->y); ABSV(ABS_HAT0X, p->hx); ABSV(ABS_HAT0Y, p->hy);
+    if (p->tq != INT_MAX) ABSV(p->c1, p->t1);
+    if (p->tq2 != INT_MAX) ABSV(p->c2, p->t2);
+#undef ABSV
     for (int i = 0; i < sizeof PADB/sizeof *PADB; i++) if (p->held >> i & 1) k |= PADK[i];
     int a = stickaxis(p->x, p->mid, p->range, p->dz);
     if (iabs(a) > iabs(axis)) axis = a;
