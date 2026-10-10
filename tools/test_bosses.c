@@ -146,8 +146,14 @@ int main(void) {
       place((b->x >> 8) + 2, (b->y >> 8) + 6); tick(0); CHECK(st != DEAD && hatst == 1);
       cst = 1; cvx = cvy = 0; cxp = (hatx - 4) << 8; cyp = (haty - 2) << 8; tick(0); CHECK(hatst == 2);
     }
-    { int n = 0; while (!b->gnd && n++ < 200) run(0, 1); }
-    stomp(b, 5, 0);
+    for (int tries = 0; b->hp != 2 - i && tries < 6; tries++) {   // under a ledge the stomp can't land: lead him out
+      if (tries) {
+        for (int n = 0; n < 40; n++) { place((b->ax0 + b->ax1)*4, b->my*8 - 60); run(0, 1); for (BShot *s = bsh; s < bsh+24; s++) s->a = 0; }
+        if (hatst != 2) { cst = 1; ckind = CAPFORWARD; cvx = cvy = 0; cxp = (hatx - 4) << 8; cyp = (haty - 2) << 8; tick(0); }
+      }
+      { int n = 0; while (!b->gnd && n++ < 200) run(0, 1); }
+      stomp(b, 5, 0);
+    }
     CHECK(b->hp == 2 - i && st != DEAD);
   }
   beaten(b);

@@ -428,6 +428,10 @@ static int scan(int x, int y, int w, int h, int m) {
 static int ov(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
   return ax < bx+bw && bx < ax+aw && ay < by+bh && by < ay+ah;
 }
+// What the thrown cap can hit (enemies, bosses, shots, blocks): its 8x5 sprite plus CAPREACH px on
+// every side, so a near miss still counts, as in Odyssey. Bouncing on the cap uses the sprite itself.
+#define CAPREACH 2
+#define CAPBOX (cxp >> 8)-CAPREACH, (cyp >> 8)-CAPREACH, 8+2*CAPREACH, 5+2*CAPREACH
 // Surface under the whole foot: ramps have the same occupied pixels as their art.
 static int floorat(int x, int feet, int *slope) {
   int best = MH*8+99; *slope = 0;
@@ -1167,7 +1171,7 @@ static void hazards(void) {
       if (--d->t <= 0) d->phase = 3;
     } else if (--d->ofs <= 0) d->ofs = 0, d->phase = 0, d->t = 100;
     if (here && alive && dwellerhit(d, h, X, Y, 6, hh)) die();   // no stomping these
-    if (here && capon && dwellerhit(d, h, cxp >> 8, cyp >> 8, 8, 5)) {
+    if (here && capon && dwellerhit(d, h, CAPBOX)) {
       if (h->spit) capx_gain(POW_SEED, cx, my);
       d->a = 0; burst(cx, up ? my-d->ofs/2 : my+d->ofs/2, h->spit ? 0xe0586a : 0x2f8f9a, 10); sfx(S_STOMP); rumble(4); kick(5);
       addscore(500, cx, up ? my-d->ofs : my);
@@ -1179,7 +1183,7 @@ static void hazards(void) {
     int sx = p->x >> 8, sy = p->y >> 8;
     if (p->room != room || sy > lh*8+16 || (SOLID >> tile(sx >> 3, sy >> 3) & 1)) { p->a = 0; continue; }
     if (alive && ov(X, Y, 6, hh, sx-2, sy-2, 4, 4)) die();
-    if (capon && ov(cxp >> 8, cyp >> 8, 8, 5, sx-2, sy-2, 4, 4)) p->a = 0, burst(sx, sy, 0x9a6a3a, 4), addscore(50, sx, sy);
+    if (capon && ov(CAPBOX, sx-2, sy-2, 4, 4)) p->a = 0, burst(sx, sy, 0x9a6a3a, 4), addscore(50, sx, sy);
   }
 }
 

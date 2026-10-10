@@ -187,6 +187,17 @@ int main(void) {
   run(0, 30); render();
   CHECK(haveck && wd.ck[0].up == 20);
 
+  // ---- the cap hits CAPREACH px past its sprite
+  use("= 1 aim\n"
+      "\n"
+      "@                                      F\n"
+      "########################################\n");
+  cst = 1; cxp = 100 << 8; cyp = 100 << 8;
+  capone = 0; CHECK(ecap(100, 104 + CAPREACH, 8, 8));     // just under the sprite: a hit
+  capone = 0; CHECK(!ecap(100, 105 + CAPREACH, 8, 8));    // further: a miss
+  capone = 0; CHECK(ecap(108 + CAPREACH - 1, 100, 8, 8)); // just ahead of it
+  cst = 0;
+
   printf("PASS: %d cap checks\n", checks);
   return 0;
 }
