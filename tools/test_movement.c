@@ -187,6 +187,8 @@ static void catches_and_throws(void) {
   airborne(0); hx=160<<8; tick(8|CAP2);
   CHECK(ckind==CAPDOWN && !cvx && cvy>0 && cyp>hy+(11<<8) && st==NORM && diveok);
   airborne(0); tick(8|32); CHECK(st==DIVE); // the primary button still dives
+  airborne(0); tick(8|PADCROUCH|CAP2); CHECK(st==DIVE && !cst); // ZL/ZR + either cap button dives, as in Odyssey
+  airborne(0); tick(8|PADCROUCH); tick(8|PADCROUCH|CAP2); CHECK(st==DIVE && !cst);
   airborne(0); hx=160<<8; map[11][20]=4; tick(4|32);
   CHECK(!scan(cxp>>8,cyp>>8,8,4,SOLID));
   while(cst==1)capupd(32);
@@ -270,8 +272,9 @@ static void longjump_inputs(void) {
       tick(key|8|16);
       CHECK(st==LONGJ && !gnd && hvy<0 && sign*hvx>=700); cases++;
     }
-    // Also accept the jump-first ordering, only during the first five airborne frames.
-    for(int delay=1;delay<=5;delay++) {
+    // Also accept the jump-first ordering, only during the first eight airborne frames
+    // (an analog trigger takes a few frames to travel after the jump button).
+    for(int delay=1;delay<=LJLATE-1;delay++) {
       fresh(); hx=640<<8;for(int i=0;i<25;i++)tick(key);
       tick(key|16); for(int i=1;i<delay;i++)tick(key|16);
       tick(key|16|8); CHECK(st==LONGJ && hvy<0 && sign*hvx>=700); cases++;
@@ -283,8 +286,11 @@ static void longjump_inputs(void) {
     fresh(); hx=640<<8;face=sign;tick(8|16);
     CHECK(st==NORM && hvy<0 && sign*hvx<0 && spin && arcg==32); // stationary backflip stays available
     fresh(); hx=640<<8;for(int i=0;i<25;i++)tick(key);
-    tick(key|16); for(int i=0;i<8;i++)tick(key|16);
+    tick(key|16); for(int i=0;i<LJLATE-1;i++)tick(key|16);
     tick(key|8);CHECK(st==GPWIND); // late Down remains a ground pound
+    fresh(); hx=640<<8;for(int i=0;i<25;i++)tick(key);
+    tick(key|16); for(int i=0;i<5;i++)tick(16);
+    tick(8);CHECK(st==GPWIND); // released direction: Down after the first five frames pounds
     fresh(); hx=640<<8;st=ROLL;posture(5);hvx=sign*900;face=sign;
     int y=hy;tick(key|16|32);
     CHECK(st==NORM && !gnd && hy<y && hvy<0 && cst==1 && !throwt && !duck);
