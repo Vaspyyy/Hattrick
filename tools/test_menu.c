@@ -28,6 +28,12 @@ int main(void) {
   CHECK(mapat==0);tick(ANALOG|((256+64)<<10));CHECK(mapto<0);   // and its dead zone doesn't
   // Holding a direction keeps walking from stop to stop.
   fresh();clearall();mapat=0;for(int i=0;i<2000 && mapat<3;i++)tick(2);CHECK(mapat>=3);
+  // Held past the first moment, Hatrick hurries: several stops take far less time than walking each one.
+  {fresh();clearall();mapat=1;int slow=0;for(int s=0;s<3;s++){tick(2);slow++;tick(0);slow++;while(mapto>=0)tick(0),slow++;}
+   int at=mapat;fresh();clearall();mapat=1;int fast=0;while(mapat<at && fast<2000)tick(2),fast++;
+   CHECK(mapat==at && fast*2<slow);
+   fresh();clearall();mapat=1;for(int i=0;i<MAPHOLD;i++)tick(2);CHECK(mapat==1 && mapto==2);   // the first stop is still a normal walk
+   tick(0);CHECK(!maphold);}
   // Every open stop can be entered; holding confirm can't jump on entry.
   fresh();clearall();
   for(int n=1;n<nnode;n++) {

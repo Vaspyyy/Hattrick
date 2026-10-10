@@ -1270,7 +1270,7 @@ static Node *node;
 static int nnode, mapw;
 static int mapgen;           // the level list the map was built for (levelgen)
 static u8 *land;             // per map px: 0 sea, 1 shallows, 2 sand, 3 grass
-static int mapat, mapto = -1, mapt, mapgoal = -1, unlockt, unlocknode = -1, pausesel;
+static int mapat, mapto = -1, mapt, mapgoal = -1, maphold, unlockt, unlocknode = -1, pausesel;
 static int trav, travsel, travtop, travnav, travrep;   // travel.h: the quick level select is open, the row picked, the top row shown
 static int trav_tick(int k, int pr);
 static void trav_open(void);
@@ -1324,7 +1324,7 @@ static void mapstart(void) {   // Hatrick stands at the first level not cleared 
   mapbuild();
   mapat = NLV ? nodeof(NLV-1) : 0;
   for (int i = NLV-1; i >= 0; i--) if (!cleared(i)) mapat = nodeof(i);
-  mapto = mapgoal = -1;
+  mapto = mapgoal = -1; maphold = 0;
 }
 static void startlevel(int l) {
   if (l == 0) deaths = coins = lcoins = score = lscore = lstart = tim = 0, runok = 1;   // level 1 starts a new run
@@ -1357,6 +1357,7 @@ static void mapenter(void) {
   if (n->kind == N_HOUSE) cl_house();
   else startlevel(n->lvl);
 }
+#define MAPHOLD 21   // frames (0.35 s) a direction is held before Hatrick hurries along the map
 static int mapstep(int from, int to) {   // the next stop on the way from one stop to another (the paths form a tree)
   int seen[nnode], prev[nnode], q[nnode], h = 0, t = 0, nb[4];
   for (int i = 0; i < nnode; i++) seen[i] = 0;
@@ -1385,9 +1386,11 @@ static void maptick(int k, int pr) {
     if (pr & (16|32|START|BACK|MENUBACK)) scoreview = 0, hinew = -1, sfx(S_MENUBACK);
     return;
   }
+  int axis = moveaxis(k), dx = axis > 128 ? 1 : axis < -128 ? -1 : 0, dy = k & 4 ? -1 : k & 8 ? 1 : 0;
+  maphold = dx || dy ? maphold + 1 : 0;   // held past MAPHOLD, Hatrick walks four times as fast
   if (mapto >= 0) {   // walking along a path
-    int dx = node[mapto].x - node[mapat].x, dy = node[mapto].y - node[mapat].y, len = iabs(dx) + iabs(dy);
-    if ((mapt += len > 0 ? 400 / len + 1 : 256) >= 256) {
+    int vx = node[mapto].x - node[mapat].x, vy = node[mapto].y - node[mapat].y, len = iabs(vx) + iabs(vy);
+    if ((mapt += len > 0 ? (400 / len + 1) * (maphold > MAPHOLD ? 4 : 1) : 256) >= 256) {
       mapat = mapto; mapto = -1; mapt = 0;
       if (mapgoal >= 0 && mapgoal != mapat) mapwalk(mapstep(mapat, mapgoal)); else mapgoal = -1;
     }
@@ -1397,7 +1400,6 @@ static void maptick(int k, int pr) {
   if (pr & START) { trav_open(); return; }   // travel.h: the quick level select
   if (pr & 16) { mapenter(); return; }
   if (pr & PRACTICE && PLAY >= 0) { startlevel(PLAY); return; }
-  int axis = moveaxis(k), dx = axis > 128 ? 1 : axis < -128 ? -1 : 0, dy = k & 4 ? -1 : k & 8 ? 1 : 0;
   if (dx || dy) {   // the path that leaves most nearly in the held direction
     int nb[4], n = neighbours(mapat, nb), best = -1, bestdot = 0;
     for (int j = 0; j < n; j++) {
