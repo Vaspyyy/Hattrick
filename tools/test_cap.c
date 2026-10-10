@@ -220,6 +220,14 @@ int main(void) {
   en[ne] = (E){ 110 << 8, (31*8-8-40) << 8, 0, 0, 2, 1, (31*8-8-40) << 8, 0 }; ne++;   // well above the cone
   run(32, 1); y0 = cyp; run(0, 4);
   CHECK(cst == 1 && cyp == y0);
+  use("= 1 aim\n"
+      "\n"
+      "@                                      F\n"
+      "########################################\n");
+  place(40, 31*8-11); settle(); face = 1;
+  en[ne] = (E){ 110 << 8, (31*8-8-14) << 8, 100, 0, T_SHY, 1, (31*8-8-14) << 8, 0 }; ne++;   // a shy-walker: it would block the cap
+  run(32, 1); y0 = cyp; run(0, 4);
+  CHECK(cst == 1 && cyp == y0);
 
   printf("PASS: %d cap checks\n", checks);
   return 0;

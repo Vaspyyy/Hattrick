@@ -1017,13 +1017,13 @@ static void hero(int k, int pr) {
 // The drift is at most CAPAIM_PULL/256 px a frame, so a throw that is well off still misses.
 // Only throws made on the ground home in: a throw in the air is usually a cap jump, and moving
 // the cap there would move the platform. Bent throws (Up / Down) and the aimed second throw are
-// left alone too.
+// left alone too. Thieves (they'd take it) and shy-walkers (they turn to block it) are no targets.
 #define CAPAIM_RANGE 72
 #define CAPAIM_PULL 128
 static void capaim(void) {
   if (!capaimok || ckind != CAPFORWARD || capextend || capx_bend || !cvx || cvy) return;
   int dir = cvx > 0 ? 1 : -1, cx = (cxp >> 8)+4, cy = (cyp >> 8)+2, best = -1, ty = 0;
-  for (E *e = en; e < en+ne; e++) if (ekillable(e) && e->t != T_THIEF) {
+  for (E *e = en; e < en+ne; e++) if (ekillable(e) && e->t != T_THIEF && e->t != T_SHY) {
     int ax = ((e->x >> 8)+4 - cx)*dir, ay = (e->y >> 8)+4 - cy, d = ax*ax + ay*ay;
     if (ax >= 4 && ax <= CAPAIM_RANGE && iabs(ay) <= ax/2 + 4 && (best < 0 || d < best)) best = d, ty = ay;
   }
