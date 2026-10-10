@@ -165,6 +165,22 @@ int main(void) {
   CHECK(cvx < 0 && cvy > 0);                        // down is down both ways
   face = 1; place(8, 20*8); cst = 0; capupd(0); capthrow(0, 0, 0, 0); for (int i = 0; i < 6; i++) capupd(0);
   CHECK(!cvy);                                      // no bend without Up or Down
+  // a sideways-held Up doesn't bend it either; a mostly-upward stick still does
+  #define STICK(a) (ANALOG | ((a)+256) << 10)
+  place(8, 20*8); cst = 0; capupd(0); capthrow(0, 0, 0, 0); for (int i = 0; i < 6; i++) capupd(4|2);
+  CHECK(!cvy);
+  place(8, 20*8); cst = 0; capupd(0); capthrow(0, 0, 0, 0); for (int i = 0; i < 6; i++) capupd(4|STICK(200));
+  CHECK(!cvy);
+  place(8, 20*8); cst = 0; capupd(0); capthrow(0, 0, 0, 0); for (int i = 0; i < 6; i++) capupd(4|STICK(60));
+  CHECK(cvy < 0);
+
+  // ---- sideways wins: Up only throws upward when Left / Right isn't held (the stick may lean a bit)
+  int aim[][2] = { { 4, 1 }, { 4|2, 0 }, { 4|1, 0 }, { 4|STICK(200), 0 }, { 4|STICK(-256), 0 }, { 4|STICK(60), 1 }, { 4|STICK(-96), 1 } };
+  for (int i = 0; i < sizeof aim/sizeof *aim; i++) {
+    use("= 1 aim\n\n@              F\n###############\n");
+    place(5*8, 31*8-11); settle(); cst = 0; prevk = 0; tick(aim[i][0]|32);
+    CHECK(cst && (ckind == CAPUP) == aim[i][1]);
+  }
 
   // ---- the lantern: bg=dark areas; the cap leaves spots of light
   CHECK(parselevels("= 1 dark bg=dark\n@  F\n####\n+ den bg=dark\n####\n+ lit\n####\n", "cap.txt"));
