@@ -60,6 +60,7 @@ typedef unsigned u32;
 #define START (1<<22)
 #define QUIT (1<<23)
 #define MENUBACK (1<<24)
+#define PADCROUCH (1<<25)  // crouch held on a controller shoulder or trigger: ZL/ZR + either cap button dives, as in Odyssey
 #define GPJUMP_V 1400
 enum { NORM, LONGJ, GPWIND, GPSLAM, GPLAND, DIVE, SLIDE, ROLL, SPINJ, GSPIN, HANG, CLIMB, TUBE, DEAD, WIN };   // TUBE and up: untouchable
 enum { CAPFORWARD, CAPUP, CAPDOWN, CAPSPIN };
@@ -739,7 +740,7 @@ static void hero(int k, int pr) {
   int axis = moveaxis(k), dir = axis > 0 ? 1 : axis < 0 ? -1 : 0;
   int target = iabs(axis)*MAXV/256, D = k >> 3 & 1, U = k >> 2 & 1, g = GRAV, X, Y;
   int takeoff = 0, rollcancel = st == ROLL && !D;
-  int cappress = pr & 32, downthrow = D && (pr & CAP2) && !(prevk & 32);
+  int cappress = pr & 32, downthrow = D && (pr & CAP2) && !(prevk & 32) && !(k & PADCROUCH);
   if (st == DEAD) { hvy += GRAV; hy += hvy; if (++stt > 60) respawn(); return; }
   if (st == WIN) { win(pr); return; }
   if (st == TUBE) { tubemove(); return; }
@@ -2308,12 +2309,13 @@ static void gfxload(const char *dir) {
 }
 
 // ---------- gamepads: every evdev gamepad is read directly, Super Mario Odyssey layout ----------
-// A/B jump, X/Y cap, LT/RT (or LB/RB) crouch / ground pound, left stick or D-pad move,
+// A/B jump, X/Y cap, LT/RT (or LB/RB) crouch / ground pound (either cap button dives from them),
+// left stick or D-pad move (stick down + the west cap button throws downward),
 // Start opens the menu, View mutes. Pads are rescanned every 2 s, so hotplugging works, and pads
 // with force feedback get rumble effects uploaded (played from rumble()).
 static const short PADB[] = { BTN_SOUTH, BTN_EAST, BTN_NORTH, BTN_WEST, BTN_TL, BTN_TR, BTN_TL2, BTN_TR2, BTN_SELECT, BTN_START,
                               BTN_DPAD_LEFT, BTN_DPAD_RIGHT, BTN_DPAD_UP, BTN_DPAD_DOWN };
-static const unsigned PADK[] = { 16, 16|MENUBACK, 32, CAP2, 8, 8, 8, 8, 128, START, 1, 2, 4, 8 };
+static const unsigned PADK[] = { 16, 16|MENUBACK, 32, CAP2, 8|PADCROUCH, 8|PADCROUCH, 8|PADCROUCH, 8|PADCROUCH, 128, START, 1, 2, 4, 8 };
 static struct { int fd, num, held, x, hx, y, hy, ymid, yrange, ydz, t1, t2, mid, range, dz, tq, tq2, c1, c2, fx[8]; } pad[4];   // fd is stored +1, 0 = free slot
 // Rumble effects 1..8 (see rumble()): strong motor, weak motor, length in ms.
 static const unsigned short RUM[8][3] = {
@@ -2404,7 +2406,7 @@ static int padkeys(void) {
     if (p->hy > 0 || ya > 128) k |= 8;
     if (p->hx < 0) k |= 1;
     if (p->hx > 0) k |= 2;
-    if (p->t1 > p->tq || p->t2 > p->tq2) k |= 8;
+    if (p->t1 > p->tq || p->t2 > p->tq2) k |= 8|PADCROUCH;
   }
   return k | (axis ? ANALOG | ((axis+256) << 10) : 0);
 }

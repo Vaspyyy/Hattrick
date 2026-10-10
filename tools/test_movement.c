@@ -187,6 +187,8 @@ static void catches_and_throws(void) {
   airborne(0); hx=160<<8; tick(8|CAP2);
   CHECK(ckind==CAPDOWN && !cvx && cvy>0 && cyp>hy+(11<<8) && st==NORM && diveok);
   airborne(0); tick(8|32); CHECK(st==DIVE); // the primary button still dives
+  airborne(0); tick(8|PADCROUCH|CAP2); CHECK(st==DIVE && !cst); // ZL/ZR + either cap button dives, as in Odyssey
+  airborne(0); tick(8|PADCROUCH); tick(8|PADCROUCH|CAP2); CHECK(st==DIVE && !cst);
   airborne(0); hx=160<<8; map[11][20]=4; tick(4|32);
   CHECK(!scan(cxp>>8,cyp>>8,8,4,SOLID));
   while(cst==1)capupd(32);
