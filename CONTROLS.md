@@ -23,7 +23,7 @@ During play, Esc or controller Start opens the pause screen and pauses the entir
 | Ground pound | Press Down in the air |
 | Spinning ground pound | Press Down during a spin jump |
 | Dive | Down + X in the air; holding either cap button then pressing Down also works |
-| Upward throw | Up + X or C |
+| Upward throw | Up + X or C, without Left / Right (the stick may lean a little); Up held with a sideways direction still throws sideways |
 | Downward throw | Down + C in the air |
 | Spin throw | X or C during a ground spin or spin jump, without Up / Down |
 | Extend / homing throw | Tap X again while the cap is out; one extension per flight, aimed at a nearby enemy in front when available |
@@ -82,7 +82,7 @@ Replacement-art check (exports the templates, paints some, and looks at the real
 
 Level proofs: `tas/1.tas` to `tas/5.tas` beat each level in the simulator, and `tas/1-bonus.tas` to `tas/5-bonus.tas` beat it again through its bonus room (`./sim 0 tas/1.tas` … `./sim 4 tas/5.tas`, or all at once with the movement checks' `--routes`). `python3 tools/route.py LEVEL out.tas [wp=X,Y[,ROOM] ...]` searches for a new one after level or movement changes.
 
-Cap mechanics (see MODDING.md, "Cap objects"): holding Up or Down while a forward throw flies bends it up or down. A cap stuck on a cap post is a platform for 2 s, and pressing a cap button while it's there pulls Hatrick to it. After the cap knocks out a walker, buzzer or spitter, Hatrick wears its power until he is hit: a stone-breaking ground pound, a flutter (press Jump while falling and hold it), or seeds lobbed with each throw.
+Cap mechanics (see MODDING.md, "Cap objects"): holding Up or Down while a forward throw flies bends it up or down (Up only bends it while no sideways direction is held). A cap stuck on a cap post is a platform for 2 s, and pressing a cap button while it's there pulls Hatrick to it. After the cap knocks out a walker, buzzer or spitter, Hatrick wears its power until he is hit: a stone-breaking ground pound, a flutter (press Jump while falling and hold it), or seeds lobbed with each throw.
 
 ## Items and the shop
 

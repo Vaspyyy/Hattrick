@@ -98,6 +98,10 @@ static int brake(int v, int amount) { return v > amount ? v-amount : v < -amount
 static int moveaxis(int k) {
   return k & 3 ? ((k >> 1 & 1) - (k & 1))*256 : k & ANALOG ? ((k >> 10) & 1023)-256 : 0;
 }
+// Up aims the cap only when it is clearly meant: sideways throws are far more common, so a held
+// Left / Right, or a stick tilted more than CAPSIDE/256 of the way sideways, drops the Up.
+#define CAPSIDE 96
+static int capaim(int k) { return iabs(moveaxis(k)) > CAPSIDE ? k & ~4 : k; }
 static int stickaxis(int x, int mid, int range, int dz) {
   int v = x-mid, a = iabs(v);
   if (a <= dz || range <= dz) return 0;
@@ -773,7 +777,7 @@ static void hero(int k, int pr) {
   if (poundt) poundt--;
   if (gnd && !D && dir && dir*hvx >= 150) runt = 10, rundir = dir;
   if (cappress && (!D || downthrow)) {
-    if (!cst || (cst == 3 && !(pr & CAP2))) capbuf = 10, capkeys = k & (4|8|CAP2);
+    if (!cst || (cst == 3 && !(pr & CAP2))) capbuf = 10, capkeys = capaim(k) & (4|8|CAP2);
   }
   if (gnd && pr & 4 && !(pr & 16) && (st == NORM || st == GSPIN)) { if (st == NORM) sfx(S_SPIN); st = GSPIN, stt = 0; }
   // Late in the window only a still-held direction counts: letting go and pressing Down is a ground pound.
