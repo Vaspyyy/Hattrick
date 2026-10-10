@@ -171,7 +171,7 @@ static int capx_tick(int k) {
     return 1;
   }
   if (cst == 1) {
-    int v = capaim(k) & 12;
+    int v = upaim(k) & 12;
     if (ckind == CAPFORWARD && v && v != 12) {   // Up / Down bend a forward throw (a sideways-held Up doesn't)
       if (!capx_bend) capx_bend = cvx >= 0 ? 1 : -1;
       int s = (k & 8 ? 1 : -1) * capx_bend, vx = cvx;

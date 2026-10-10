@@ -315,6 +315,16 @@ static void remaining_combos(void) {
   tick(32);CHECK(ckind==CAPSPIN && gnd && st==GSPIN);
   tick(16);CHECK(st==SPINJ && !gnd && hvy<0);
   fresh();tick(4);for(int i=0;i<90;i++)tick(0);CHECK(st==NORM);
+  // Up held while moving sideways (D-pad diagonal, or a stick leaning up) doesn't spin;
+  // a mostly-upward stick still does.
+  #define STICK(a) (ANALOG|((a)+256)<<10)
+  fresh();tick(4|2);CHECK(st==NORM);
+  fresh();tick(2);tick(4|2);CHECK(st==NORM);
+  fresh();tick(4|STICK(200));CHECK(st==NORM);
+  fresh();tick(4|STICK(60));CHECK(st==GSPIN);
+  fresh();tick(4|2|16);CHECK(st==NORM && !gnd && hvy<0);
+  fresh();tick(4|STICK(-220)|16);CHECK(st==NORM && !gnd);
+  fresh();tick(4|STICK(-60)|16);CHECK(st==SPINJ && !gnd);
   // A press made just before the cap comes back survives the catch, including direction.
   airborne(0);hx=320<<8;cst=3;cxp=hx+(10<<8);cyp=hy+768;
   tick(4|32);CHECK(capbuf && cst==3);

@@ -18,8 +18,8 @@ During play, Esc or controller Start opens the pause screen and pauses the entir
 | Backflip | Down + Jump while stationary |
 | Side flip | Jump while reversing a run |
 | Double / triple jump | Jump again promptly after landing; the third jump requires forward movement |
-| Ground spin | Tap Up on the ground |
-| Spin jump | Up + Jump, or Jump during a ground spin |
+| Ground spin | Tap Up on the ground, without Left / Right (the stick may lean a little) |
+| Spin jump | Up + Jump without Left / Right, or Jump during a ground spin |
 | Ground pound | Press Down in the air |
 | Spinning ground pound | Press Down during a spin jump |
 | Dive | Down + X in the air; holding either cap button then pressing Down also works |

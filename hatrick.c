@@ -98,10 +98,10 @@ static int brake(int v, int amount) { return v > amount ? v-amount : v < -amount
 static int moveaxis(int k) {
   return k & 3 ? ((k >> 1 & 1) - (k & 1))*256 : k & ANALOG ? ((k >> 10) & 1023)-256 : 0;
 }
-// Up aims the cap only when it is clearly meant: sideways throws are far more common, so a held
-// Left / Right, or a stick tilted more than CAPSIDE/256 of the way sideways, drops the Up.
-#define CAPSIDE 96
-static int capaim(int k) { return iabs(moveaxis(k)) > CAPSIDE ? k & ~4 : k; }
+// Up throws the cap upward and spins only when it is clearly meant: sideways movement is far more
+// common, so a held Left / Right, or a stick tilted more than UPSIDE/256 of the way sideways, drops the Up.
+#define UPSIDE 96
+static int upaim(int k) { return iabs(moveaxis(k)) > UPSIDE ? k & ~4 : k; }
 static int stickaxis(int x, int mid, int range, int dz) {
   int v = x-mid, a = iabs(v);
   if (a <= dz || range <= dz) return 0;
@@ -777,9 +777,9 @@ static void hero(int k, int pr) {
   if (poundt) poundt--;
   if (gnd && !D && dir && dir*hvx >= 150) runt = 10, rundir = dir;
   if (cappress && (!D || downthrow)) {
-    if (!cst || (cst == 3 && !(pr & CAP2))) capbuf = 10, capkeys = capaim(k) & (4|8|CAP2);
+    if (!cst || (cst == 3 && !(pr & CAP2))) capbuf = 10, capkeys = upaim(k) & (4|8|CAP2);
   }
-  if (gnd && pr & 4 && !(pr & 16) && (st == NORM || st == GSPIN)) { if (st == NORM) sfx(S_SPIN); st = GSPIN, stt = 0; }
+  if (gnd && pr & upaim(k) & 4 && !(pr & 16) && (st == NORM || st == GSPIN)) { if (st == NORM) sfx(S_SPIN); st = GSPIN, stt = 0; }
   // Late in the window only a still-held direction counts: letting go and pressing Down is a ground pound.
   if (!gnd && launch && pr & 8 && !(k & 32) && (dir || (runt && launch >= LJLATE-5))) {
     if (dir) face = dir; else face = rundir;
@@ -854,7 +854,7 @@ static void hero(int k, int pr) {
       int js = S_JUMP;
       jbuf = 0; coy = 99; cut = 1; spin = 0; gnd = 0; posture(0); takeoff = 1; launch = LJLATE;
       if (poundt && !D && !U) { hvy = -GPJUMP_V; cut = 0; poundt = 0; jn = -1; SPIN(40, face); js = S_JUMP3; }
-      else if (U) { st = SPINJ; hvy = -560; jn = -1; cut = 0; launch = 0; js = S_SPIN; }
+      else if (upaim(k) & 4) { st = SPINJ; hvy = -560; jn = -1; cut = 0; launch = 0; js = S_SPIN; }
       else if (D && (dir || runt || iabs(hvx) > 150)) { if (dir) face = dir; else if (runt) face = rundir; longjump(); js = S_LONGJ; }
       else if (D) { hvy = -1060; arcg = 32; hvx = -face*200; SPIN(40, -face); jn = -1; cut = launch = 0; js = S_FLIP; }
       else if (skid && dir) { face = dir; hvx = dir*260; hvy = -1020; arcg = 32; SPIN(40, dir); jn = -1; cut = launch = 0; js = S_FLIP; }
