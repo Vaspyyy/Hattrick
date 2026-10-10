@@ -97,7 +97,7 @@ with tempfile.TemporaryDirectory(prefix='hatrick-menu-test-') as tmp:
             subprocess.run(['xdotool', 'windowfocus', window], env=env, check=True)
             print('PASS: switching away from the game pauses it')
             # Exit to the map, walk home, read the scores, walk to the playground and play it.
-            tap('Down'); assert state()['pausesel'] == 1
+            tap('Down'); tap('Down'); assert state()['pausesel'] == 2
             tap('Return'); until(lambda s: s['menu'] == 1 and s['resumable'] == 0 and s['mapat'] == 1, 2, 'back on the map')
             print('PASS: "exit to map" from the pause screen')
             tap('Left'); until(lambda s: s['mapat'] == 0 and s['mapto'] < 0, 4, 'home')

@@ -5,7 +5,8 @@
 // Gamepads use the Super Mario Odyssey layout (see padkeys).
 // F1 opens the movement playground. Up spins on the ground; C recalls an out cap.
 // R restarts the level, M mutes, Esc pauses / resumes. On the overworld map the arrows walk
-// between stops and Enter or Jump plays one; Q quits. Controller Start pauses.
+// between stops and Enter or Jump plays one; Tab or controller Start opens the quick level select; Q quits.
+// Controller Start pauses. Coins bank at the flag and buy items in the house shop (items.h).
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include "gfx.h"
@@ -491,6 +492,7 @@ static void dust(int x, int y, int dir, int n) {   // soft puffs at the feet, x,
 }
 #define SPIN(n, d) (spin = spinlen = (n), spind = (d))   // flip animation: length, direction
 #include "cap.h"   // cap posts, cap switches, hat swap and the rest of the cap ideas
+#include "items.h"   // the coin bank, the shop and the items
 static int dieforce;   // doom(): a kill no hat power can soak up
 // Hearts, like Odyssey: a hit costs one and Hatrick blinks for a moment; the last one lost is a death.
 // Touching a checkpoint fills them again, and every (re)spawn starts full.
@@ -498,12 +500,12 @@ static int dieforce;   // doom(): a kill no hat power can soak up
 static int hp = MAXHP, hpt, healt;   // hpt: frames since a heart was lost (it jumps on the HUD); healt: a refill's glow
 static int hurt(void) {   // die() asks after the hat power: a spare heart takes the hit. Pits and the timer always count.
   if ((hy >> 8) > lh*8 || !left || hp <= 1) return 0;
-  hp--; hpt = 0; capx_inv = 90; if (hvy > -600) hvy = -600;
+  hp--; hpt = 0; capx_inv = 90; it_shoes = 0; if (hvy > -600) hvy = -600;
   burst((hx >> 8)+3, (hy >> 8)+2, 0xff4a5a, 10); sfx(S_BOUNCE); rumble(5); kick(6);
   return 1;
 }
 static void die(void) {
-  if (!dieforce && (capx_absorb() || (st < TUBE && hurt()))) return;
+  if (!dieforce && (it_shield() || capx_absorb() || it_eggsave() || (st < TUBE && hurt()))) return;
   if (st < TUBE) { st = DEAD; stt = 0; hvy = -900; hvx = 0; hp = 0; hpt = 0; deaths++; sfx(S_DEATH); rumble(7); kick(9); }
 }
 static void doom(void) { dieforce = 1; die(); dieforce = 0; }   // lava, rising lines, avalanches, quicksand, squeezes
@@ -558,6 +560,7 @@ static void spawn(int r, int x, int y) {
   ledget = climbx = climby = slopedir = poundt = 0;
   mv_reset();
   hp = MAXHP; hpt = 99; healt = 0;
+  it_spawn();
   loads++;
   bossstart();
   capx_reset();
@@ -727,6 +730,7 @@ static void touchflag(int Y) {
   if (lvl < NLV) progkeep(lvl, wd.moongot | 8);   // cleared; the moon coins count once they reach a flag
   addscore(f >= 90 ? 5000 : f >= 65 ? 2000 : f >= 40 ? 800 : f >= 20 ? 400 : 100, gx*8+8, Y);
   cl_flag();
+  it_clear();   // items.h: the coins go into the bank
 }
 
 static void hero(int k, int pr) {
@@ -858,6 +862,7 @@ static void hero(int k, int pr) {
     } else if (jbuf && catcht && catchok && !gnd) {
       jbuf = catcht = catchok = 0; st = NORM; spin = cut = 0;
       hvy = -320; arcg = 26; throwt = 0; twirl = 10; stall = 1; launch = 0; sfx(S_SPIN);
+    } else if (pr & 16 && !gnd && !takeoff && it_airjump()) {   // items.h: the spring shoes
     } else if (!takeoff && pr & 8 && !gnd && !(k & 32)) {
       gpspin = st == SPINJ; st = GPWIND; stt = 0; throwt = twirl = 0; SPIN(14, face); sfx(S_GPSPIN);
     }
@@ -901,6 +906,7 @@ static void hero(int k, int pr) {
   if (throwt && st == NORM) { throwt--; hvy = g = 0; }
   hvy += g;
   capx_flutter(k, pr);
+  it_glide(k);   // items.h: the feather cap
   if (st != GPSLAM) {
     if (hvy > 1100) hvy = 1100;   // wall slides brake in mv_move()
   }
@@ -1004,23 +1010,25 @@ static void hero(int k, int pr) {
 
 static void capupd(int k) {
   if (capx_tick(k)) return;
+  it_captick();
   if (!cst) return;
   if (ckind == CAPSPIN && cst < 3) {
     int a = ++ct*256/24;
     int nx = hx + 256 + SIN[(a+64)&255]*14, ny = hy + (5 << 8) + SIN[a&255]*5;
     if (!scan(nx >> 8, ny >> 8, 8, 4, SOLID)) cxp = nx, cyp = ny;
     if (ct >= 24) cst = 3;
+  } else if (cst == 1 && it_boomhome()) {   // items.h: the boomerang cap flying home
   } else if (cst == 1) {
-    int nx = cxp + cvx, ny = cyp + cvy;
+    int nx = cxp + cvx, ny = cyp + cvy, slow = it_capslow();
     if (scan(nx >> 8, ny >> 8, 8, 4, SOLID)) {
       if (capreflect && cvx) { cvx = -cvx; capreflect = 0; }
-      else cst = 2, ct = 0;
+      else if (!it_boomturn()) cst = 2, ct = 0;
     }
     else {
       cxp = nx; cyp = ny;
-      if (cvx) cvx -= cvx > 0 ? 72 : -72;
-      if (cvy) cvy -= cvy > 0 ? 72 : -72;
-      if (iabs(cvx) < 100 && iabs(cvy) < 100) cst = 2, ct = 0;
+      if (cvx) cvx -= cvx > 0 ? slow : -slow;
+      if (cvy) cvy -= cvy > 0 ? slow : -slow;
+      if (iabs(cvx) < 100 && iabs(cvy) < 100 && !it_boomturn()) cst = 2, ct = 0;
     }
   } else if (cst == 2) {
     if (ct < 24) ct++;
@@ -1111,7 +1119,7 @@ static void hazards(void) {
   if (hpt < 99) hpt++;
   if (healt) healt--;
   for (int i = 0; i < L->nmoon; i++)   // moon coins: a 10 px box around each
-    if (L->moon[i].room == room && alive && !(wd.moongot >> i & 1) && ov(X, Y, 6, hh, L->moon[i].x*8-1, L->moon[i].y*8-1, 10, 10)) {
+    if (L->moon[i].room == room && alive && !(wd.moongot >> i & 1) && ov(X - it_moonreach(), Y - it_moonreach(), 6 + 2*it_moonreach(), hh + 2*it_moonreach(), L->moon[i].x*8-1, L->moon[i].y*8-1, 10, 10)) {
       wd.moongot |= 1 << i; sfx(S_MOON); rumble(3);
       burst(L->moon[i].x*8+4, L->moon[i].y*8+4, 0xfff0a0, 10); burst(L->moon[i].x*8+4, L->moon[i].y*8+4, 0xc8d8ff, 8);
       addscore(2000, L->moon[i].x*8+4, L->moon[i].y*8-4);
@@ -1124,9 +1132,9 @@ static void hazards(void) {
         c->up = 20; saved = wd; savedcoins = coins; savedscore = score;   // the respawn snapshot has it raised
         c->up = 1; sfx(S_CHECK);
       }
-      if (hp < MAXHP) {   // any checkpoint, new or already raised, fills the hearts
+      if (hp < HPMAX) {   // any checkpoint, new or already raised, fills the hearts
         if (c->up > 1) sfx(S_CHECK);
-        hp = MAXHP; healt = 24; sparkle(X+3, Y+2, 0xff7a8a, 10);
+        hp = HPMAX; healt = 24; sparkle(X+3, Y+2, 0xff7a8a, 10);
       }
     }
   }
@@ -1251,6 +1259,10 @@ static int nnode, mapw;
 static int mapgen;           // the level list the map was built for (levelgen)
 static u8 *land;             // per map px: 0 sea, 1 shallows, 2 sand, 3 grass
 static int mapat, mapto = -1, mapt, mapgoal = -1, unlockt, unlocknode = -1, pausesel;
+static int trav, travsel, travtop, travnav, travrep;   // travel.h: the quick level select is open, the row picked, the top row shown
+static int trav_tick(int k, int pr);
+static void trav_open(void);
+static void trav_render(void);
 static int edgeoff(int a, int b) { return (a + b) & 1 ? 7 : -7; }   // how far a path between two stops bows
 static void pathpt(int a, int b, int t, int *x, int *y) {   // t 0..256 from stop a to stop b
   *x = node[a].x + (node[b].x - node[a].x) * t / 256;
@@ -1306,7 +1318,7 @@ static void startlevel(int l) {
   if (l == 0) deaths = coins = lcoins = score = lscore = lstart = tim = 0, runok = 1;   // level 1 starts a new run
   else lcoins = coins, lscore = score, lstart = tim;
   if (l && l < NLV && l != runnext) runok = 0;   // out of order (a replay, a skip): no high score this run
-  lvl = l; done = donet = shake = rumq = 0; scoreview = 0;
+  lvl = l; done = donet = shake = rumq = 0; scoreview = 0; it_level();
   for (P *p = pt; p < pt+NP; p++) p->l = 0;
   menu = 0; resumable = 1; load(); sfx(S_MENUOK);
 }
@@ -1356,6 +1368,7 @@ static void maptick(int k, int pr) {
   menufr++;
   if (unlockt) unlockt--;
   if (cl_maptick(k, pr)) return;   // Hatrick's house is open
+  if (trav_tick(k, pr)) return;     // travel.h: the level list is open
   if (scoreview) {   // the table: any button goes back to the map
     if (pr & (16|32|START|BACK|MENUBACK)) scoreview = 0, hinew = -1, sfx(S_MENUBACK);
     return;
@@ -1369,7 +1382,8 @@ static void maptick(int k, int pr) {
     return;
   }
   if (pr & BACK) { quitting = 1; return; }   // Esc on the map quits, as on any title screen
-  if (pr & (16|START)) { mapenter(); return; }
+  if (pr & START) { trav_open(); return; }   // travel.h: the quick level select
+  if (pr & 16) { mapenter(); return; }
   if (pr & PRACTICE && PLAY >= 0) { startlevel(PLAY); return; }
   int axis = moveaxis(k), dx = axis > 128 ? 1 : axis < -128 ? -1 : 0, dy = k & 4 ? -1 : k & 8 ? 1 : 0;
   if (dx || dy) {   // the path that leaves most nearly in the held direction
@@ -1390,11 +1404,17 @@ static void openmenu(int k) {
 }
 static void pausetick(int k, int pr) {
   menufr++;
+  if (it_bag) { it_bagtick(k, pr); return; }   // items.h: the bag
   if (pr & (BACK|MENUBACK|32)) { menu = 0; sfx(S_MENUBACK); return; }
-  if (pr & (16|START)) { if (pausesel) done ? finishrun() : quitlevel(), sfx(S_MENUOK); else menu = 0, sfx(S_MENUBACK); return; }
+  if (pr & (16|START)) {
+    if (pausesel == 2) done ? finishrun() : quitlevel(), sfx(S_MENUOK);
+    else if (pausesel == 1) it_openbag();
+    else menu = 0, sfx(S_MENUBACK);
+    return;
+  }
   int axis = moveaxis(k), nav = k & 12 ? (k & 8 ? 1 : -1) : axis > 128 ? 1 : axis < -128 ? -1 : 0;
   if (nav && (nav != menunav || --menurepeat <= 0)) {
-    pausesel = !pausesel; sfx(S_MENUMOVE);
+    pausesel = (pausesel + nav + 3) % 3; sfx(S_MENUMOVE);
     menurepeat = nav != menunav ? 18 : 6;
   }
   menunav = nav;
@@ -1429,6 +1449,7 @@ static void tick(int k) {
   enemies(k);
   hazards();
   cl_tick();
+  it_tick();   // items.h
   bosstick();
   worldtick();   // clock blocks, the avalanche
   gim_post(k, pr);   // gimmicks.h
@@ -1645,14 +1666,15 @@ static void menuscores(void) {
     snprintf(line,sizeof line,"%d",hi[i].score);menutext(line,570-textwidth(line,1),y,1,c);
   }
 }
-// The pause screen: the level stays in view, dimmed, under two choices.
+// The pause screen: the level stays in view, dimmed, under three choices.
 static void pauserender(void) {
-  static const char *const OPT[2] = { "CONTINUE", "EXIT TO MAP" };
+  static const char *const OPT[3] = { "CONTINUE", "ITEMS", "EXIT TO MAP" };
+  if (it_bag) { it_bagrender(); return; }   // items.h
   darken(120);
-  plaque(234,96,300,240);
-  hudtext("PAUSED",(MENUW-textwidth("PAUSED",1))/2,124,0xffd894);
-  for (int i = 0; i < 2; i++) {
-    int y = 186 + i*64, on = i == pausesel;
+  plaque(234,70,300,290);
+  hudtext("PAUSED",(MENUW-textwidth("PAUSED",1))/2,96,0xffd894);
+  for (int i = 0; i < 3; i++) {
+    int y = 150 + i*62, on = i == pausesel;
     mround(270, y, 228, 44, 6, on ? 0xffdb87 : 0x46607e); mround(272, y+2, 224, 40, 5, on ? 0xeaaa5d : 0x34506e);
     menutext(OPT[i], 384 - textwidth(OPT[i], 1)/2, y+12, 1, on ? 0xfff3d1 : 0xc8d4dc);
     if (on) mhat(232, y+12 + SIN[(menufr*5) & 255]*2/256);
@@ -1660,7 +1682,7 @@ static void pauserender(void) {
 }
 static int pausehit(int x, int y) {   // which choice is under the mouse (window px), or -1
   x = x * MENUW / SW; y = y * MENUH / SH;
-  for (int i = 0; i < 2; i++) if (x >= 270 && x < 498 && y >= 186 + i*64 && y < 230 + i*64) return i;
+  for (int i = 0; i < 3; i++) if (x >= 270 && x < 498 && y >= 150 + i*62 && y < 194 + i*62) return i;
   return -1;
 }
 
@@ -1774,6 +1796,7 @@ static void maprender(void) {
   hudtext("HATRICK", 22, 392, 0xfff3d1);
   if (naming || scoreview) menuscores();
   cl_maprender();
+  trav_render();
 }
 static int maphit(int x, int y) {   // the stop under the mouse (window px), or -1
   int mx = x / SC + mapcam, my = y / SC;
@@ -1783,6 +1806,10 @@ static int maphit(int x, int y) {   // the stop under the mouse (window px), or 
 
 // Brass tubes: shading across a 16 px wide tube (a = 0..15), and the bands around it every 16 px.
 #include "collect_ui.h"
+#define ITEMS_UI
+#include "items.h"   // the shop, the bag, the items in the level
+#undef ITEMS_UI
+#include "travel.h"   // Start on the map: the quick level select
 
 static u32 brass(int a, int along) {
   if (a == 0 || a == 15) return 0x3e2a10;
@@ -2022,7 +2049,7 @@ static void drawhero(void) {
   if (turnt) { if (!spin && st < DIVE) sx = sx * (256 - turnt*44) >> 8; turnt--; }   // quick turn, not mid-flip
   sy = 256 + sqv; sx = sx * (256 - sqv/2) >> 8; sqv = sqv * 13 / 16;
   mv_pose(&f, &fl, &ang, &sx, &fx, &fy);
-  sprx(f, sh, fx, fy + bob + iabs(vang) * 512 / 64, fl, ang, sx, sy, capx_pal(HPAL));
+  sprx(f, sh, fx, fy + bob + iabs(vang) * 512 / 64, fl, ang, sx, sy, it_pal(capx_pal(HPAL)));
 }
 static const u32 SNAPPAL[3] = { 0x2f8f9a, 0xf4e6c0, 0x1b2433 };
 // The background behind everything: sky.png / cave.png, or the built-in sky, clouds and hills / cave.
@@ -2077,7 +2104,7 @@ static const u32 SPITPAL[3] = { 0xe0586a, 0xf4e6c0, 0x3a1424 };
 #include "cap.h"
 static void render(void) {
   const Level *L = LV + lvl;
-  if ((menu && !resumable) || naming) { maprender(); gim_maphud(); return; }
+  if ((menu && !resumable) || naming) { maprender(); if (!clhouse && !trav) gim_maphud(); return; }
   camera();
   ox = cxf * SC >> 8;
   oy = cyf * SC >> 8;
@@ -2166,6 +2193,7 @@ static void render(void) {
   }
   capless = cst != 0;
   if (st != TUBE) drawhero();
+  it_draw();   // items.h: the egg buddy, a planted flag
   bossdraw();
   mv_drawwater();
   for (const Pop *p = pops; p < pops+12; p++) if (p->t) {   // score numbers drift up; found coins hop out
@@ -2201,7 +2229,8 @@ static void render(void) {
     mellipse(670, 37, 14, 14, 0x14100c); mellipse(670, 37, 12, 12, c);                                         // the clock
     for (int o = -1; o <= 0; o++) { mline(670+o, 37, 670+o, 28, 0x14100c); mline(670, 37+o, 678, 37+o, 0x14100c); }
     snprintf(t, sizeof t, "%03d", (left + 59) / 60); hudtext(t, 692, 26, c);
-    for (int i = 0; i < MAXHP; i++) hudheart(672 + i*30, 72, i < hp, i == hp && hpt < 24 ? hpt : i < hp && healt ? -1 : 0);
+    for (int i = 0; i < HPMAX; i++) hudheart(672 - (HPMAX-3)*30 + i*30, 72, i < hp, i == hp && hpt < 24 ? hpt : i < hp && healt ? -1 : 0);
+    it_hud();   // items.h: what is on
   }
   if (done) {   // the run is over: its time and score, big
     int s = 2, x = 84, yy = 52;
@@ -2395,7 +2424,7 @@ static void director(void) {
   if (quiet) quiet--;   // after a death the theme waits for the death jingle
   // stems
   int fast = (gnd && iabs(hvx) >= 380) || st == LONGJ || st == DIVE || st == SLIDE || st == ROLL || st == SPINJ || (spin && jn == 2);
-  fast |= gim_fastmusic();   // gimmicks.h: the speed flip
+  fast |= gim_fastmusic() || it_gold;   // gimmicks.h: the speed flip; items.h: the gold cap
   if (fast && !menu) fastt = 90; else if (fastt) fastt--;
   if (arpt) arpt--;
   float g[NSTEM] = { 1, 1, 1, 1, fastt ? 1 : 0, arpt ? 1 : 0, 1 };
@@ -2467,13 +2496,13 @@ int main(int argc, char **argv) {
     while (XPending(d)) {
       XEvent e; XNextEvent(d, &e);
       if (e.type == ClientMessage && (Atom)e.xclient.data.l[0] == wmdelete) quitting = 1;
-      if (menu && !scoreview && !naming && !clhouse && (e.type == MotionNotify || (e.type == ButtonPress && e.xbutton.button == 1))) {
+      if (menu && !scoreview && !naming && !clhouse && !it_bag && !trav && (e.type == MotionNotify || (e.type == ButtonPress && e.xbutton.button == 1))) {
         int x = e.type == MotionNotify ? e.xmotion.x : e.xbutton.x;
         int y = e.type == MotionNotify ? e.xmotion.y : e.xbutton.y;
         if (resumable) {   // the pause screen: hover picks, click chooses
           int hit = pausehit(x, y);
           if (hit >= 0 && hit != pausesel) pausesel = hit, sfx(S_MENUMOVE);
-          if (hit >= 0 && e.type == ButtonPress) { if (hit) tomap(), sfx(S_MENUOK); else menu = 0, sfx(S_MENUBACK); }
+          if (hit >= 0 && e.type == ButtonPress) { if (hit == 2) tomap(), sfx(S_MENUOK); else if (hit) it_openbag(); else menu = 0, sfx(S_MENUBACK); }
         } else if (e.type == ButtonPress) mapclick(maphit(x, y));   // the map: click a stop to walk there, again to enter
       }
     }
@@ -2486,7 +2515,7 @@ int main(int argc, char **argv) {
       if (resumable && !menu) openmenu(0);
     }
 #define K(c) (km[c >> 3] >> (c & 7) & 1)
-    tick((active ? padkeys() : 0) | K(113) | K(114) << 1 | K(111) << 2 | K(116) << 3 | (K(52) | K(29) | K(65) | K(36) | K(104)) << 4 | K(53) << 5 | K(27) << 6 | K(58) << 7 | K(54) << 8 | K(67) << 20 | K(9) << 21 | K(24) << 23 | K(68) << 28 | K(69) << 29);
+    tick((active ? padkeys() : 0) | K(113) | K(114) << 1 | K(111) << 2 | K(116) << 3 | (K(52) | K(29) | K(65) | K(36) | K(104)) << 4 | K(53) << 5 | K(27) << 6 | K(58) << 7 | K(54) << 8 | K(67) << 20 | K(9) << 21 | K(23) << 22 | K(24) << 23 | K(68) << 28 | K(69) << 29);
     // volume: + / - (German layout keys) or keypad + / -, ten steps
     int vk = (K(35) | K(86)) | (K(61) | K(82)) << 1, vp = vk & ~volkeys;
     volkeys = vk;

@@ -11,7 +11,7 @@ Everything you can mod lives in `assets/` next to the game:
 
 The game reads these files when it starts, so there is no rebuild: edit, then restart the game. Mistakes never stop the game. A broken level, an unknown option or a missing sound is reported on the terminal with the file and line, and the rest still works. Run `./hatrick` from a terminal to see these reports, or `./sim --check` to check `levels.txt` alone.
 
-The high-score table and the progress (levels cleared, moon coins found) are saved separately, in `~/.hatrick_scores` and `~/.hatrick_progress`.
+The high-score table, the progress (levels cleared, moon coins found) and the coin bank with the items bought are saved separately, in `~/.hatrick_scores`, `~/.hatrick_progress` and `~/.hatrick_items`.
 
 ## Sounds and music
 
@@ -319,6 +319,12 @@ Caps: every campaign level whose moon coins are all brought home (or, if it has 
 Hatrick's house grows a room per level cleared, each with a trophy (with a star once earned), the level's postcard once found, and a framed portrait of the boss for castle levels; on the map the house grows annexes too.
 
 Checks: `gcc -O1 -w tools/test_collect.c -o /tmp/hatrick-collect-tests && (cd tools && /tmp/hatrick-collect-tests)`.
+
+## Items (items.h) and the level select (travel.h)
+
+The shop's items, their prices and the lines the shop shows are the `ITEM` table at the top of `items.h`; their effects are the `it_*` hooks it lists (the game calls them from `hatrick.c` with one line each). `IT_MAX` is how many of one item the bag holds and `IT_GOLDT` how long the gold cap lasts, in frames. `~/.hatrick_items` is plain text: a `<coins> BANK` line and one `<count> <ITEM NAME>` line per item held (`HATRICK_ITEMS` names another file). The quick level select on the map is `travel.h`; it lists the same stops the map shows.
+
+Checks: `gcc -O1 -w tools/test_items.c -o /tmp/hatrick-item-tests && /tmp/hatrick-item-tests`.
 
 ## New worlds (worlds.h, worlds.c, `assets/worlds.txt`)
 
