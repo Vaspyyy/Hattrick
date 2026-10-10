@@ -217,7 +217,7 @@ static int mv_slidetick(int dir) {
   if (gnd && dir && dir*hvx < 0) hvx = brake(hvx, MV_SLIDEDRAG);   // leaning back
   if (hvx) face = hvx > 0 ? 1 : -1;
   if (jbuf && coy < 6) {   // leap out, keeping the speed
-    jbuf = 0; st = NORM; mv_slide = 0; hvy = -870; posture(0); cut = 1; gnd = 0; coy = 99; jn = -1; launch = 6; sfx(S_JUMP);
+    jbuf = 0; st = NORM; mv_slide = 0; hvy = -870; posture(0); cut = 1; gnd = 0; coy = 99; jn = -1; launch = LJLATE; sfx(S_JUMP);
   } else if (stuck || (gnd && iabs(hvx) < 120 && (!slopedir || s != slopedir) && stt > 4)) {   // out of speed
     st = NORM; mv_slide = 0; posture(0);
   }

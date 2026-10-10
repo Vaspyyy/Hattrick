@@ -12,6 +12,7 @@
 #include "gfx.h"
 #include "sound.h"
 #include <stdarg.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +52,7 @@ typedef unsigned u32;
 #define ROLLMAX (MAXV*35/14)
 #define ROLLBOOST (MAXV*6/14)
 #define TRIPLE_V 1220
+#define LJLATE 9         // Down within a running jump's first 8 airborne frames still makes it a long jump
 #define CAPBOUNCE_V 768
 #define CAPVAULT_V (CAPBOUNCE_V*32/26)
 #define PRACTICE (1<<20)
@@ -769,7 +771,8 @@ static void hero(int k, int pr) {
     if (!cst || (cst == 3 && !(pr & CAP2))) capbuf = 10, capkeys = k & (4|8|CAP2);
   }
   if (gnd && pr & 4 && !(pr & 16) && (st == NORM || st == GSPIN)) { if (st == NORM) sfx(S_SPIN); st = GSPIN, stt = 0; }
-  if (!gnd && launch && pr & 8 && !(k & 32) && (dir || runt)) {
+  // Late in the window only a still-held direction counts: letting go and pressing Down is a ground pound.
+  if (!gnd && launch && pr & 8 && !(k & 32) && (dir || (runt && launch >= LJLATE-5))) {
     if (dir) face = dir; else face = rundir;
     longjump(); takeoff = 1; sfx(S_LONGJ);
   }
@@ -801,7 +804,7 @@ static void hero(int k, int pr) {
     if (gnd) hvx = D ? hvx*998/1000 : brake(hvx, FRIC);
     if (jbuf && coy < 6) {
       jbuf = 0;
-      if (rollcancel && cappress) { st = NORM; hvy = -870; posture(0); gnd = 0; coy = 99; cut = 1; jn = 0; launch = 6; }
+      if (rollcancel && cappress) { st = NORM; hvy = -870; posture(0); gnd = 0; coy = 99; cut = 1; jn = 0; launch = LJLATE; }
       else longjump();
       takeoff = 1; sfx(rollcancel && cappress ? S_JUMP : S_LONGJ);
     } else if (!D) st = NORM, posture(0);
@@ -840,7 +843,7 @@ static void hero(int k, int pr) {
     }
     if (jbuf && coy < 6) {
       int js = S_JUMP;
-      jbuf = 0; coy = 99; cut = 1; spin = 0; gnd = 0; posture(0); takeoff = 1; launch = 6;
+      jbuf = 0; coy = 99; cut = 1; spin = 0; gnd = 0; posture(0); takeoff = 1; launch = LJLATE;
       if (poundt && !D && !U) { hvy = -GPJUMP_V; cut = 0; poundt = 0; jn = -1; SPIN(40, face); js = S_JUMP3; }
       else if (U) { st = SPINJ; hvy = -560; jn = -1; cut = 0; launch = 0; js = S_SPIN; }
       else if (D && (dir || runt || iabs(hvx) > 150)) { if (dir) face = dir; else if (runt) face = rundir; longjump(); js = S_LONGJ; }
@@ -2264,6 +2267,7 @@ static void render(void) {
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/input.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2310,7 +2314,7 @@ static void gfxload(const char *dir) {
 static const short PADB[] = { BTN_SOUTH, BTN_EAST, BTN_NORTH, BTN_WEST, BTN_TL, BTN_TR, BTN_TL2, BTN_TR2, BTN_SELECT, BTN_START,
                               BTN_DPAD_LEFT, BTN_DPAD_RIGHT, BTN_DPAD_UP, BTN_DPAD_DOWN };
 static const unsigned PADK[] = { 16, 16|MENUBACK, 32, CAP2, 8, 8, 8, 8, 128, START, 1, 2, 4, 8 };
-static struct { int fd, num, held, x, hx, y, hy, ymid, yrange, ydz, t1, t2, mid, range, dz, tq, c1, c2, fx[8]; } pad[4];   // fd is stored +1, 0 = free slot
+static struct { int fd, num, held, x, hx, y, hy, ymid, yrange, ydz, t1, t2, mid, range, dz, tq, tq2, c1, c2, fx[8]; } pad[4];   // fd is stored +1, 0 = free slot
 // Rumble effects 1..8 (see rumble()): strong motor, weak motor, length in ms.
 static const unsigned short RUM[8][3] = {
   { 0x0000, 0x4800,  50 }, { 0x3000, 0x3800,  70 }, { 0x5000, 0x3000,  80 }, { 0x6800, 0x5000, 100 },
@@ -2340,7 +2344,11 @@ static void padscan(void) {
       }
       ioctl(fd, EVIOCGBIT(EV_ABS, sizeof abs), abs);    // Bluetooth pads put the triggers on ABS_BRAKE / ABS_GAS
       p->c1 = BIT(abs, ABS_GAS) ? ABS_BRAKE : ABS_Z; p->c2 = BIT(abs, ABS_GAS) ? ABS_GAS : ABS_RZ;
-      p->tq = ioctl(fd, EVIOCGABS(p->c1), &ai) < 0 ? 64 : ai.maximum / 4;
+      // A trigger counts as pressed a quarter of the way in, measured from its own resting end:
+      // some drivers report triggers from 0, others from a negative minimum.
+      p->t1 = p->t2 = INT_MIN; p->tq = p->tq2 = INT_MAX;
+      if (ioctl(fd, EVIOCGABS(p->c1), &ai) >= 0) p->t1 = ai.value, p->tq = ai.minimum + (ai.maximum-ai.minimum)/4;
+      if (ioctl(fd, EVIOCGABS(p->c2), &ai) >= 0) p->t2 = ai.value, p->tq2 = ai.minimum + (ai.maximum-ai.minimum)/4;
       for (int j = 0; j < 8; j++) p->fx[j] = -1;
       // Rumble only on physical pads. Effect uploads to a virtual (uinput) pad, e.g. Steam's,
       // wait up to 30 s each for the program behind it, and lock the device for everyone else
@@ -2396,7 +2404,7 @@ static int padkeys(void) {
     if (p->hy > 0 || ya > 128) k |= 8;
     if (p->hx < 0) k |= 1;
     if (p->hx > 0) k |= 2;
-    if (p->t1 > p->tq || p->t2 > p->tq) k |= 8;
+    if (p->t1 > p->tq || p->t2 > p->tq2) k |= 8;
   }
   return k | (axis ? ANALOG | ((axis+256) << 10) : 0);
 }
@@ -2538,6 +2546,7 @@ int main(int argc, char **argv) {
 }
 #else
 // ---------- headless simulator: replays scripted input, reports deaths / goal ----------
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
