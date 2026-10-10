@@ -48,6 +48,13 @@ static int bossinarena(int x);   // boss.c
 static void it_clear(void);
 static void it_tick(void);
 
+// Item sel moved by nav: Left/Right step through all of them, Up/Down change row (wrapping) and keep
+// the column, landing on the last item when the short row has none there.
+static int it_gridnav(int sel, int nav) {
+  if (nav == 1 || nav == -1) return (sel + nav + NITEM) % NITEM;
+  int rows = (NITEM + IT_COLS-1) / IT_COLS, row = (sel/IT_COLS + (nav > 0 ? 1 : rows-1)) % rows, i = row*IT_COLS + sel%IT_COLS;
+  return i < NITEM ? i : NITEM-1;
+}
 static void it_level(void) {   // startlevel(): a new level starts with nothing on
   it_pie = it_feather = it_boom = it_gold = it_shoes = it_ajump = it_magnet = it_egg = it_boomback = 0;
   it_flagr = it_flagx = it_flagy = -1;
@@ -177,7 +184,7 @@ static void it_bagtick(int k, int pr) {   // the pause screen's ITEMS: Left/Righ
   }
   int axis = moveaxis(k), nav = axis > 128 ? 1 : axis < -128 ? -1 : k & 4 ? -IT_COLS : k & 8 ? IT_COLS : 0;
   if (nav && (nav != it_bagnav || --it_bagrep <= 0)) {
-    it_bagsel = (it_bagsel + nav + NITEM) % NITEM; it_bagmsg = 0; sfx(S_MENUMOVE);
+    it_bagsel = it_gridnav(it_bagsel, nav); it_bagmsg = 0; sfx(S_MENUMOVE);
     it_bagrep = nav != it_bagnav ? 18 : 7;
   }
   it_bagnav = nav;
@@ -281,7 +288,7 @@ static int it_shoptick(int k, int pr) {   // cl_maptick() hands it the input whi
   }
   int axis = moveaxis(k), nav = axis > 128 ? 1 : axis < -128 ? -1 : k & 4 ? -IT_COLS : k & 8 ? IT_COLS : 0;
   if (nav && (nav != it_shopnav || --it_shoprep <= 0)) {
-    it_shopsel = (it_shopsel + nav + NITEM) % NITEM; it_shopmsg = 0; sfx(S_MENUMOVE);
+    it_shopsel = it_gridnav(it_shopsel, nav); it_shopmsg = 0; sfx(S_MENUMOVE);
     it_shoprep = nav != it_shopnav ? 18 : 7;
   }
   it_shopnav = nav;
