@@ -13,11 +13,12 @@
 //   MAGNET         coins and moon coins come to Hatrick from a few tiles away
 //   EGG BUDDY      an egg follows Hatrick and takes one hit for him
 //   FLAG           a checkpoint planted where Hatrick stands (not during a boss fight)
+//   FULL HEAL      every heart back at once (a 4th one too, with the pie on)
 // Items are used from the pause screen (ITEMS). Feather, boomerang and magnet last the rest of the
 // level; the others are lost when Hatrick goes down. ~/.hatrick_items keeps the bank and the
 // items bought (HATRICK_ITEMS names another file; the simulator and tests only ever use that).
 #ifndef ITEMS_UI
-enum { IT_PIE, IT_FEATHER, IT_BOOM, IT_GOLD, IT_SHOES, IT_MAGNET, IT_EGG, IT_FLAG, NITEM };
+enum { IT_PIE, IT_FEATHER, IT_BOOM, IT_GOLD, IT_SHOES, IT_MAGNET, IT_EGG, IT_FLAG, IT_HEAL, NITEM };
 static const struct { const char *name, *what; int price; } ITEM[NITEM] = {
   { "HEART PIE", "A 4TH HEART UNTIL YOU GO DOWN", 30 },
   { "FEATHER CAP", "HOLD JUMP TO GLIDE DOWN", 40 },
@@ -27,8 +28,10 @@ static const struct { const char *name, *what; int price; } ITEM[NITEM] = {
   { "MAGNET", "PULLS IN COINS AND MOONS", 30 },
   { "EGG BUDDY", "TAKES ONE HIT FOR YOU", 40 },
   { "FLAG", "PLANT YOUR OWN CHECKPOINT", 25 },
+  { "FULL HEAL", "REFILLS EVERY HEART", 20 },
 };
 #define IT_MAX 9          // the most of one item Hatrick can carry
+#define IT_COLS 5         // items per row in the shop and the bag; Up/Down move a whole row
 #define IT_GOLDT 600      // frames the gold cap lasts
 #define IT_GLIDE 300      // the feather cap's fall speed
 static int it_have[NITEM], it_bank, it_read;   // what is in the bag, the coins banked; it_read: the save file was read
@@ -148,6 +151,10 @@ static const char *it_use(int i) {   // 0 when it worked, else why not
       haveck = 1; ckroom = room; ckx = hx; cky = hy; saved = wd; savedcoins = coins; savedscore = score;
       it_flagr = room; it_flagx = hx; it_flagy = hy; sfx(S_CHECK);
       break;
+    case IT_HEAL:
+      if (hp >= HPMAX) return "YOUR HEARTS ARE ALREADY FULL";
+      hp = HPMAX; healt = 24; sparkle((hx >> 8)+3, (hy >> 8)+2, 0xff7a8a, 10);
+      break;
   }
   it_have[i]--; it_save();
   sparkle((hx >> 8)+3, (hy >> 8)+4, 0xfff0a0, 12);
@@ -168,7 +175,7 @@ static void it_bagtick(int k, int pr) {   // the pause screen's ITEMS: Left/Righ
     else it_bag = 0, menu = 0, sfx(S_MENUOK);   // straight back into the level
     return;
   }
-  int axis = moveaxis(k), nav = axis > 128 ? 1 : axis < -128 ? -1 : k & 4 ? -4 : k & 8 ? 4 : 0;
+  int axis = moveaxis(k), nav = axis > 128 ? 1 : axis < -128 ? -1 : k & 4 ? -IT_COLS : k & 8 ? IT_COLS : 0;
   if (nav && (nav != it_bagnav || --it_bagrep <= 0)) {
     it_bagsel = (it_bagsel + nav + NITEM) % NITEM; it_bagmsg = 0; sfx(S_MENUMOVE);
     it_bagrep = nav != it_bagnav ? 18 : 7;
@@ -244,6 +251,13 @@ static void it_icon(int i, int x, int y, int dim) {
       mrect(cx-10, y+2, 4, 36, D(0xd8dde4)); mrect(cx-14, y+36, 12, 4, D(0x6a3a1a));
       for (int j = 0; j < 14; j++) mrect(cx-6, y+4 + j, 22 - iabs(j-7)*3, 1, D(0x2ec85a));
       break;
+    case IT_HEAL:   // a round bottle of red heart juice with a cork, a heart on the glass
+      mrect(cx-5, y+1, 10, 7, D(0x6a3a1a)); mrect(cx-4, y+2, 8, 5, D(0xc88a50));
+      mrect(cx-6, y+7, 12, 6, D(0x14100c)); mrect(cx-4, y+7, 8, 6, D(0xd8eef8));
+      mellipse(cx, cy+7, 16, 14, D(0x14100c)); mellipse(cx, cy+7, 14, 12, D(0xd8eef8));
+      mellipse(cx, cy+9, 12, 9, D(0xe8303e)); mrect(cx-12, cy+5, 24, 4, D(0xe8303e)); mellipse(cx-6, cy+1, 3, 2, D(0xffffff));
+      it_heart(cx, cy+7, 6, D(0xffe0e4));
+      break;
   }
   #undef D
 }
@@ -265,7 +279,7 @@ static int it_shoptick(int k, int pr) {   // cl_maptick() hands it the input whi
     else { it_bank -= ITEM[i].price; it_have[i]++; it_save(); it_shopwhy = "THANK YOU"; it_shopmsg = 60; sfx(S_COIN); sfx(S_MENUOK); }
     return 1;
   }
-  int axis = moveaxis(k), nav = axis > 128 ? 1 : axis < -128 ? -1 : k & 4 ? -4 : k & 8 ? 4 : 0;
+  int axis = moveaxis(k), nav = axis > 128 ? 1 : axis < -128 ? -1 : k & 4 ? -IT_COLS : k & 8 ? IT_COLS : 0;
   if (nav && (nav != it_shopnav || --it_shoprep <= 0)) {
     it_shopsel = (it_shopsel + nav + NITEM) % NITEM; it_shopmsg = 0; sfx(S_MENUMOVE);
     it_shoprep = nav != it_shopnav ? 18 : 7;
@@ -280,8 +294,9 @@ static void it_shoprender(void) {
   plaque(24, 10, 720, 412);
   hudtext("SHOP", (MENUW - textwidth("SHOP", 1))/2, 24, 0xffd894);
   it_coin(560, 37); snprintf(t, sizeof t, "%d", it_bank); hudtext(t, 580, 26, 0xffffff);
-  for (int i = 0; i < NITEM; i++) {   // two shelves of four
-    int x = 84 + i%4*156, y = 72 + i/4*126, on = i == it_shopsel, bob = on ? SIN[(menufr*6) & 255]*3/256 : 0;
+  for (int i = 0; i < NITEM; i++) {   // shelves of IT_COLS, the short last one centred
+    int row = i/IT_COLS, n = NITEM - row*IT_COLS < IT_COLS ? NITEM - row*IT_COLS : IT_COLS;
+    int x = 38 + (IT_COLS - n)*70 + i%IT_COLS*140, y = 72 + row*126, on = i == it_shopsel, bob = on ? SIN[(menufr*6) & 255]*3/256 : 0;
     mround(x, y, 132, 108, 8, on ? 0xffdb87 : 0x46607e); mround(x+2, y+2, 128, 104, 7, on ? 0xa67150 : 0x34506e);
     it_icon(i, x+46, y+10 - (on ? 4 : 0) + bob, 0);
     it_coin(x+40, y+80); snprintf(t, sizeof t, "%d", ITEM[i].price);
@@ -297,10 +312,11 @@ static void it_shoprender(void) {
 static void it_bagrender(void) {
   char t[32];
   darken(120);
-  plaque(84, 60, 600, 320);
+  plaque(40, 60, 688, 320);
   hudtext("ITEMS", (MENUW - textwidth("ITEMS", 1))/2, 84, 0xffd894);
   for (int i = 0; i < NITEM; i++) {
-    int x = 120 + i%4*136, y = 128 + i/4*92, on = i == it_bagsel;
+    int row = i/IT_COLS, n = NITEM - row*IT_COLS < IT_COLS ? NITEM - row*IT_COLS : IT_COLS;
+    int x = 68 + (IT_COLS - n)*64 + i%IT_COLS*128, y = 128 + row*92, on = i == it_bagsel;
     mround(x, y, 120, 80, 6, on ? 0xffdb87 : 0x46607e); mround(x+2, y+2, 116, 76, 5, on ? 0xa67150 : 0x34506e);
     it_icon(i, x+40, y+16, !it_have[i]);
     snprintf(t, sizeof t, "%d", it_have[i]); menutext(t, x+112 - textwidth(t, 1), y+8, 1, it_have[i] ? 0xfff3d1 : 0x6a7a90);
@@ -337,7 +353,7 @@ static const u32 *it_pal(const u32 *p) {
 }
 // The HUD, under the coin count: what is on right now (spent shoes dimmed until the ground).
 static void it_hud(void) {
-  int on[NITEM] = { 0, it_feather, it_boom, it_gold, it_shoes, it_magnet, it_egg, 0 }, x = 24;
+  int on[NITEM] = { 0, it_feather, it_boom, it_gold, it_shoes, it_magnet, it_egg, 0, 0 }, x = 24;
   for (int i = 0; i < NITEM; i++) if (on[i]) {
     mround(x - 2, 62, 44, 44, 6, 0x14100c); mround(x, 64, 40, 40, 5, 0x2c4162); it_icon(i, x, 64, i == IT_SHOES && it_ajump);
     if (i == IT_GOLD) mrect(x+2, 100, it_gold * 36 / IT_GOLDT, 3, 0xffd84a);
