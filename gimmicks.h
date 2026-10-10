@@ -461,7 +461,7 @@ static void gim_post(int k, int pr) {
         hvy = k & 16 ? -1000 : -650; st = NORM; arcg = GRAV; launch = 0; cut = 0; capok = diveok = stall = 1; spin = throwt = 0;
       } else die();
     }
-    if (b->a && cst && cst < 3 && ov(cxp >> 8, cyp >> 8, 8, 5, bx, by, 8, 8)) { b->a = 0; burst(bx+4, by+4, 0x505060, 8); sfx(S_STOMP); addscore(200, bx+4, by); }
+    if (b->a && cst && cst < 3 && ov(CAPBOX, bx, by, 8, 8)) { b->a = 0; burst(bx+4, by+4, 0x505060, 8); sfx(S_STOMP); addscore(200, bx+4, by); }
   }
   if (L->gim[GO_RISE] && room == 0 && st != WIN && !done) {   // the rising kill line
     if (GW.risedelay) GW.risedelay--;

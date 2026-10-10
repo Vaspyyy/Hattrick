@@ -50,7 +50,7 @@ int main(void) {
   // ---- shy-walker: the mask blocks a cap thrown at its face, a cap from behind knocks it over
   use(FLAT); settle(); place(40, 229);
   E *s = ADD(T_SHY, 76, 232); s->vx = -100;
-  run(32, 1); run(0, 12);
+  run(32, 1); for (int i = 0; i < 12 && cst != 3; i++) run(0, 1);
   CHECK(s->a && cst == 3 && score == 0);   // bounced off: the cap flies home
   use(FLAT); settle(); place(40, 229); face = 1;
   s = ADD(T_SHY, 56, 232); s->vx = 100;

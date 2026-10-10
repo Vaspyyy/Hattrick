@@ -187,6 +187,40 @@ int main(void) {
   run(0, 30); render();
   CHECK(haveck && wd.ck[0].up == 20);
 
+  // ---- aim assist: the cap hits CAPREACH px past its sprite, and a ground throw drifts toward
+  // an enemy ahead in a narrow cone; an air throw (a cap jump) flies straight
+  use("= 1 aim\n"
+      "\n"
+      "@                                      F\n"
+      "########################################\n");
+  cst = 1; cxp = 100 << 8; cyp = 100 << 8;
+  capone = 0; CHECK(ecap(100, 104 + CAPREACH, 8, 8));     // just under the sprite: a hit
+  capone = 0; CHECK(!ecap(100, 105 + CAPREACH, 8, 8));    // further: a miss
+  capone = 0; CHECK(ecap(108 + CAPREACH - 1, 100, 8, 8)); // just ahead of it
+  cst = 0;
+  place(40, 31*8-11); settle(); face = 1; CHECK(gnd);
+  en[ne] = (E){ 110 << 8, (31*8-8-14) << 8, 0, 0, 2, 1, (31*8-8-14) << 8, 0 }; ne++;   // a buzzer ahead, above the throw line
+  run(32, 1); int y0 = cyp; run(0, 4);
+  CHECK(cst == 1 && cyp < y0);                             // drifting up toward it
+  CHECK(y0 - cyp <= 5*CAPAIM_PULL);                        // but only a little
+  run(0, 30);
+  use("= 1 aim\n"
+      "\n"
+      "@                                      F\n"
+      "########################################\n");
+  place(40, 31*8-11); settle(); face = 1;
+  en[ne] = (E){ 110 << 8, (31*8-8-14) << 8, 0, 0, 2, 1, (31*8-8-14) << 8, 0 }; ne++;
+  run(16, 4); run(32, 1); y0 = cyp; run(0, 4);
+  CHECK(!gnd && cst == 1 && cyp == y0);                    // thrown in the air: no drift
+  use("= 1 aim\n"
+      "\n"
+      "@                                      F\n"
+      "########################################\n");
+  place(40, 31*8-11); settle(); face = 1;
+  en[ne] = (E){ 110 << 8, (31*8-8-40) << 8, 0, 0, 2, 1, (31*8-8-40) << 8, 0 }; ne++;   // well above the cone
+  run(32, 1); y0 = cyp; run(0, 4);
+  CHECK(cst == 1 && cyp == y0);
+
   printf("PASS: %d cap checks\n", checks);
   return 0;
 }

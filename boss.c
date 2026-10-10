@@ -117,7 +117,7 @@ static int bosstouch(int x, int y, int w, int h) {
 static void bossbounce(void) {   // off a boss's head, as off an enemy
   hvy = prevk & 16 ? -1000 : -650; st = NORM; arcg = GRAV; launch = 0; cut = 0; capok = diveok = stall = 1; spin = throwt = 0;
 }
-static int bosscap(int x, int y, int w, int h) { return cst && cst < 3 && ov(cxp >> 8, cyp >> 8, 8, 5, x, y, w, h); }
+static int bosscap(int x, int y, int w, int h) { return cst && cst < 3 && ov(CAPBOX, x, y, w, h); }
 static void capclink(void) { burst((cxp >> 8)+4, (cyp >> 8)+2, 0xffffff, 4); sfx(S_BOUNCE); cst = 3; }
 // Anything a boss does to Hatrick: fatal, unless he wears the haberdasher's hat, which it knocks off.
 static void bossharm(int fromx) {
@@ -362,7 +362,7 @@ static void matriarch(Boss *b) {
     if (--b->t <= 0) b->s = 3;
   } else if (mofs > 0) { mofs -= b->hurt ? 4 : 2; if (mofs <= 0) { mofs = 0; int was = mcur; mcur = mpick(was, dcur); b->s = 0; b->t = 40 - lost*5; } }
   if (mcur >= 0 && st < TUBE && mhit(mcur, mofs, 6, X, Y, 6, 11-duck)) die();
-  if (mcur >= 0 && cst && cst < 3 && mhit(mcur, mofs, 7, cxp >> 8, cyp >> 8, 8, 5) && b->s != 3) {
+  if (mcur >= 0 && cst && cst < 3 && mhit(mcur, mofs, 7, CAPBOX) && b->s != 3) {
     int cx, my, up; mspot(mcur, &cx, &my, &up);
     cst = 3;
     if (bosshurt(b, cx, up ? my - mofs/2 : my + mofs/2)) { bosswin(b, 5000, cx, up ? my - 20 : my + 20); b->s = 3; return; }
@@ -375,7 +375,7 @@ static void matriarch(Boss *b) {
     else if (dph == 2) { if (--dt <= 0) dph = 3; }
     else if (dph == 3 && --dofs <= 0) dofs = 0, dcur = -1, dph = 0, dt = 60 + rnd(60);
     if (dcur >= 0 && st < TUBE && mhit(dcur, dofs, 3, X, Y, 6, 11-duck)) die();
-    if (dcur >= 0 && cst && cst < 3 && mhit(dcur, dofs, 4, cxp >> 8, cyp >> 8, 8, 5) && dph != 3) {
+    if (dcur >= 0 && cst && cst < 3 && mhit(dcur, dofs, 4, CAPBOX) && dph != 3) {
       int cx, my, up; mspot(dcur, &cx, &my, &up);
       burst(cx, up ? my - dofs/2 : my + dofs/2, 0x2f8f9a, 8); sfx(S_STOMP); addscore(200, cx, up ? my - dofs : my);
       dofs = 0; dcur = -1; dph = 0; dt = 120;
@@ -461,7 +461,7 @@ static void bossshots(void) {
     if (s->kind == BS_ZAP) continue;
     if ((s->kind == BS_SEED || s->kind == BS_STING) && SOLID >> tile(sx >> 3, sy >> 3) & 1) { s->a = 0; burst(sx, sy, 0x9a6a3a, 2); continue; }
     if (st < TUBE && ov(hx >> 8, (hy >> 8) + duck, 6, 11-duck, sx-3, sy-3, 6, 6)) { bossharm(sx); s->a = 0; continue; }
-    if (cst && cst < 3 && ov(cxp >> 8, cyp >> 8, 8, 5, sx-3, sy-3, 6, 6)) { s->a = 0; burst(sx, sy, 0xc0c8d0, 5); addscore(100, sx, sy); sfx(S_BOUNCE); }
+    if (cst && cst < 3 && ov(CAPBOX, sx-3, sy-3, 6, 6)) { s->a = 0; burst(sx, sy, 0xc0c8d0, 5); addscore(100, sx, sy); sfx(S_BOUNCE); }
   }
 }
 

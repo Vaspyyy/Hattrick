@@ -84,7 +84,7 @@ static int ehero(int x, int y, int w, int h) {
 }
 static void ebounce(int k) { hvy = k & 16 ? -1000 : -650; st = NORM; arcg = GRAV; launch = 0; cut = 0; capok = diveok = stall = 1; spin = throwt = 0; }
 static int capone;   // the cap already hit an enemy this frame: one at a time, so it can't take out two of a stack
-static int ecap(int x, int y, int w, int h) { return !capone && cst && cst < 3 && !capstolen() && ov(cxp >> 8, cyp >> 8, 8, 5, x, y, w, h) && (capone = 1); }
+static int ecap(int x, int y, int w, int h) { return !capone && cst && cst < 3 && !capstolen() && ov(CAPBOX, x, y, w, h) && (capone = 1); }
 static int ekillable(const E *o) {
   return o->a && o->r == room && (o->t <= 3 || o->t == T_SHY || o->t == T_SHELL || o->t == T_THIEF || o->t == T_RIDER || o->t == T_PUFF);
 }
