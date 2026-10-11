@@ -98,6 +98,7 @@ Coins now buy things. The coins picked up in a level go into a bank when Hatrick
 | Magnet | 30 | Coins within three tiles and moon coins close by come to Hatrick. Lasts the rest of the level |
 | Egg buddy | 40 | An egg follows Hatrick and takes the next hit for him, then breaks. Gone when he goes down |
 | Flag | 25 | Plants a checkpoint where Hatrick stands (on the ground, outside boss arenas). A death comes back to it |
+| Full heal | 20 | Every heart back at once (all four with the heart pie on). Can't be used with full hearts, so none is wasted |
 
 The bank and the bag are saved in `~/.hatrick_items`.
 
