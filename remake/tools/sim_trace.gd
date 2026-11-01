@@ -25,6 +25,11 @@ func _init() -> void:
 	sim.load_level(args[0].to_int())
 	var trace := args.size() > 2 and args[2] == "trace"
 	var f := FileAccess.open(args[1], FileAccess.READ)
+	if f == null:
+		# relative paths start in remake/ (Godot's --path), so routes in the repo are ../tas/...
+		printerr("can't read %s (relative paths start in remake/: try ../tas/...)" % args[1])
+		quit(3)
+		return
 	var frame := 0
 	var words := f.get_as_text().split("\n")
 	var respawn := OS.get_environment("SIM_RESPAWN") != ""

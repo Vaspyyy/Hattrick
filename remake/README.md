@@ -70,12 +70,18 @@ only read its state and its events (`ev`: sounds, particles, kills; `dirty`: cha
 
 ## Tools
 
+Run from the repository root. Godot works inside `remake/`, so relative file arguments start
+there (`../tas/1.tas`). The screenshot tools need a display; `xvfb-run -a` gives them one.
+
 ```sh
-# replay a recorded route through the port and compare with the C simulator's output
-godot --headless --path remake --script res://tools/sim_trace.gd -- 0 tas/1.tas
+# check that every script parses (silent when they do; exit 1 when one doesn't)
+remake/tools/check.sh
+# replay a recorded route through the port; diff with the C simulator's `./sim 0 tas/1.tas trace`
+godot --headless --path remake --script res://tools/sim_trace.gd -- 0 ../tas/1.tas trace
 # pose Hatrick in every state and save screenshots
 godot --path remake --script res://tools/booth.gd -- /tmp/booth
 # play a recorded route in the full game and save screenshots after some steps
+# (--skip 250 runs the first 250 steps without drawing them, much faster on a slow GPU)
 godot --path remake -- --replay ../tas/1.tas --shots 60,300 --out /tmp/shots
 ```
 
