@@ -7,6 +7,7 @@
 #   --shots A,B,...       with --replay: save a screenshot after these steps
 #   --out DIR             where the screenshots go
 #   --frames N            with --replay: quit after N steps
+#   --skip N              with --replay: run the first N steps without drawing them (fast)
 #   --assets DIR          the levels, music and sounds (default: ../assets)
 #   --snap SECONDS        save a screenshot (to --out) after this long and quit
 extends Node
@@ -55,6 +56,7 @@ var replay := PackedInt32Array()
 var shots := {}
 var out_dir := "/tmp"
 var frames := -1
+var skip := 0
 var steps := 0
 var start_level_arg := -1
 var snap := -1.0
@@ -102,6 +104,8 @@ func _ready() -> void:
 	add_child(audio)
 	audio.setup(assets)
 	pad = Pad.new()
+	if (not shots.is_empty() or snap >= 0.0) and DisplayServer.get_name() == "headless":
+		push_warning("--headless draws nothing, so no screenshots will be saved (xvfb-run -a gives Godot a display)")
 	if not replay.is_empty():
 		start_level(maxi(start_level_arg, 0))
 		mode = "play"
@@ -125,6 +129,7 @@ func _args() -> void:
 				i += 1
 			"--out": out_dir = v; i += 1
 			"--frames": frames = v.to_int(); i += 1
+			"--skip": skip = v.to_int(); i += 1
 			"--assets": assets = v; i += 1
 			"--snap": snap = v.to_float(); i += 1
 		i += 1
@@ -416,32 +421,14 @@ func _process(dt: float) -> void:
 		return
 	var alpha := Engine.get_physics_interpolation_fraction()
 	if not replay.is_empty():
+		# one step per drawn frame; --skip runs the first steps (and the views) undrawn
+		while steps < skip - 1 and mode == "play":
+			_step()
+			_frame(1.0, 1.0 / 60.0)
 		_step()
 		alpha = 1.0
 		dt = 1.0 / 60.0
-	actors.hop = audio.hop()
-	var hc := Vector2(sim.hx, sim.hy) / 256.0
-	var hp := prev_hero.lerp(hc, alpha)
-	var lh: int = sim.lh
-	hero.animate(sim, Vector3((hp.x + 3.0) / 8.0, lh - (hp.y + 11.0) / 8.0, 0.0), alpha, dt)
-	var cc := prev_cam.lerp(Vector2(sim.cxf, sim.cyf) / 256.0, alpha)
-	var center := Vector3((cc.x + Sim.W / 2.0) / 8.0, lh - (cc.y + Sim.H / 2.0) / 8.0, 0.0)
-	# The view is a little closer than the C game's (16 tiles tall instead of 18) and sits a
-	# little lower, so the front of the ground shows: it gives up the top of the C framing, where
-	# its camera band never lets Hatrick go.
-	center.y -= (18.0 - cam.VIEW_H) * 0.5 + 0.6
-	if mode == "title":
-		title_t += dt
-		center.x = hero.position.x + 4.5 + sin(title_t * 0.3) * 0.5
-	cam.follow(center, sim.shake, dt)
-	level.update(dt)
-	actors.update(alpha, dt)
-	fx.update(dt)
-	backdrop.update(dt)
-	lights.lantern.position = hero.position + Vector3(0, 1.4, 2.2)
-	blob.position = hero.position + Vector3(0, 0.08 - blob.size.y * 0.5, 0)
-	blob.visible = sim.st != Sim.TUBE and sim.st != Sim.DEAD
-	hud.update(sim, dt, cam.unproject_position(hero.global_position + Vector3(0, 0.7, 0)))
+	_frame(alpha, dt)
 	if snap >= 0.0:
 		snap -= dt
 		if snap < 0.0:
@@ -458,3 +445,30 @@ func _process(dt: float) -> void:
 		if (frames > 0 and steps >= frames) or steps >= replay.size() + 120:
 			print("replay done at step %d: st=%d coins=%d score=%d" % [steps, sim.st, sim.coins, sim.score])
 			get_tree().quit()
+
+
+# Moves every view to the sim's current state (alpha: how far between the last two steps).
+func _frame(alpha: float, dt: float) -> void:
+	actors.hop = audio.hop()
+	var hc := Vector2(sim.hx, sim.hy) / 256.0
+	var hp := prev_hero.lerp(hc, alpha)
+	var lh: int = sim.lh
+	hero.animate(sim, Vector3((hp.x + 3.0) / 8.0, lh - (hp.y + 11.0) / 8.0, 0.0), alpha, dt)
+	var cc := prev_cam.lerp(Vector2(sim.cxf, sim.cyf) / 256.0, alpha)
+	var center := Vector3((cc.x + Sim.W / 2.0) / 8.0, lh - (cc.y + Sim.H / 2.0) / 8.0, 0.0)
+	# The view is a little closer than the C game's (17 tiles tall instead of 18) and keeps its
+	# bottom edge, so the front of the ground shows; it gives up a little of the top, where the
+	# C camera band never lets Hatrick go.
+	center.y -= (18.0 - cam.VIEW_H) * 0.5 + 0.1
+	if mode == "title":
+		title_t += dt
+		center.x = hero.position.x + 8.0 + sin(title_t * 0.3) * 0.5
+	cam.follow(center, sim.shake, dt)
+	level.update(dt)
+	actors.update(alpha, dt)
+	fx.update(dt)
+	backdrop.update(dt)
+	lights.lantern.position = hero.position + Vector3(0, 1.4, 2.2)
+	blob.position = hero.position + Vector3(0, 0.08 - blob.size.y * 0.5, 0)
+	blob.visible = sim.st != Sim.TUBE and sim.st != Sim.DEAD
+	hud.update(sim, dt, cam.unproject_position(hero.global_position + Vector3(0, 0.7, 0)))

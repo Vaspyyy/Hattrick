@@ -79,6 +79,9 @@ func set_mode(m: String) -> void:
 			sky_mat.sun_angle_max = 1.0
 			sun.light_energy = 0.35 if m == "cave" else 0.08
 			sun.light_color = Color(0.85, 0.75, 0.9)
+			# no sun underground: as a fill light it would throw the ceiling's and every block's
+			# shadow onto the back wall as black bands
+			sun.shadow_enabled = false
 			env.ambient_light_energy = 0.7 if m == "cave" else 0.25
 			env.fog_light_color = Color(0.1, 0.07, 0.07)
 			env.fog_density = 0.3
@@ -88,6 +91,7 @@ func set_mode(m: String) -> void:
 			sky_mat.sky_horizon_color = Color(0.25, 0.3, 0.5)
 			sun.light_energy = 0.45
 			sun.light_color = Color(0.7, 0.8, 1.0)
+			sun.shadow_enabled = true
 			env.ambient_light_energy = 0.6
 			lantern.light_energy = 0.8
 		_:
@@ -100,6 +104,7 @@ func set_mode(m: String) -> void:
 			sky_mat.sun_curve = 0.1
 			sun.light_energy = 1.25
 			sun.light_color = Color(1.0, 0.96, 0.88)
+			sun.shadow_enabled = true
 			env.ambient_light_energy = 0.75
 			env.ambient_light_sky_contribution = 1.0
 			env.fog_light_color = Color(0.74, 0.86, 0.98)

@@ -5,7 +5,7 @@ extends Camera3D
 
 const FOV := 30.0
 const PITCH := 7.0
-const VIEW_H := 16.0   # tiles visible top to bottom on the play plane (the C game shows 18)
+const VIEW_H := 17.0   # tiles visible top to bottom on the play plane (the C game shows 18)
 var dist := 0.0
 var t := 0.0
 var punch := 0.0       # an extra kick from the view (landing a ground pound, a boss hit)
