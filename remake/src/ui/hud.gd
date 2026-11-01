@@ -28,6 +28,10 @@ var card_l: Label
 var card_sub: Label
 var clear_l: Label
 var tally_l: Label
+var boss_l: Label          # boss.c's banner: the boss's name and its health
+var boss_i := -1
+var boss_shake := 0.0
+var boss_hp := 0
 var iris: ColorRect
 var iris_mat: ShaderMaterial
 var sim
@@ -71,6 +75,9 @@ func _ready() -> void:
 	_place(clear_l, 0.5, 0.5, -700, -260, 700, -120)
 	clear_l.text = "COURSE CLEAR!"
 	clear_l.add_theme_color_override("font_color", Color(1.0, 0.9, 0.35))
+	boss_l = _label(46, HORIZONTAL_ALIGNMENT_CENTER)
+	_place(boss_l, 0.5, 0, -700, 100, 700, 156)
+	boss_l.visible = false
 	tally_l = _label(50, HORIZONTAL_ALIGNMENT_CENTER)
 	_place(tally_l, 0.5, 0.5, -700, -110, 700, -40)
 	iris = ColorRect.new()
@@ -139,6 +146,21 @@ func update(s, dt: float, screen_pos: Vector2) -> void:
 			heart_pulse = 1.0
 		hp_show = s.hp
 	heart_pulse = maxf(0.0, heart_pulse - dt * 2.5)
+	# the boss banner, while a fight is on
+	boss_i = -1
+	for i in s.bz.size():
+		var b = s.bz[i]
+		if b.room == s.room and b.on == 1 and not b.dead:
+			boss_i = i
+			break
+	boss_l.visible = boss_i >= 0 and card_t > 2.0
+	if boss_i >= 0:
+		var b = s.bz[boss_i]
+		boss_l.text = Sim.BOSSTITLE[b.kind] if b.kind else Sim.MINITITLE[b.mini]
+		boss_l.add_theme_color_override("font_color", Color(1.0, 0.85, 0.29) if b.kind else Color(0.78, 0.94, 0.66))
+		if b.hp < boss_hp: boss_shake = 1.0
+		boss_hp = b.hp
+	boss_shake = maxf(0.0, boss_shake - dt * 3.0)
 	# the level card
 	card_t += dt
 	var a := 0.0
@@ -227,6 +249,20 @@ func _draw_hud() -> void:
 			draw.draw_circle(p, 15.0, Color(0.5, 0.56, 0.72))
 		else:
 			draw.draw_circle(p, 15.0, Color(0.22, 0.24, 0.34))
+	# the boss's health: a pip per hit, orange once the haberdasher loses his hat
+	if boss_l.visible:
+		var b = sim.bz[boss_i]
+		var vs := root.get_viewport_rect().size
+		var n: int = b.maxhp
+		var x0 := vs.x * 0.5 - (n * 52 - 12) * 0.5
+		var jig := Vector2(sin(t * 60.0) * 6.0 * boss_shake, 0)
+		for i in n:
+			var p := Vector2(x0 + i * 52 + 20, 186) + jig
+			draw.draw_circle(p, 22.0, Color(0.08, 0.06, 0.05))
+			var fill := Color(0.29, 0.25, 0.31)
+			if i < b.hp: fill = Color(1.0, 0.48, 0.11) if b.phase == 2 else Color(0.91, 0.22, 0.29)
+			draw.draw_circle(p, 16.0, fill)
+			if i < b.hp: draw.draw_circle(p + Vector2(-5, -5), 5.0, fill.lightened(0.5))
 	# the card's ribbon
 	if card.visible:
 		var vs := root.get_viewport_rect().size

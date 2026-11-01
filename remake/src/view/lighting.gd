@@ -86,14 +86,19 @@ func set_mode(m: String) -> void:
 			env.fog_light_color = Color(0.1, 0.07, 0.07)
 			env.fog_density = 0.3
 			lantern.light_energy = 1.8 if m == "cave" else 2.6
-		"night":
-			sky_mat.sky_top_color = Color(0.05, 0.08, 0.2)
-			sky_mat.sky_horizon_color = Color(0.25, 0.3, 0.5)
-			sun.light_energy = 0.45
-			sun.light_color = Color(0.7, 0.8, 1.0)
+		"night":   # gimmicks.h's night areas: the C game tints everything a dim blue
+			sky_mat.sky_top_color = Color(0.03, 0.05, 0.14)
+			sky_mat.sky_horizon_color = Color(0.16, 0.22, 0.4)
+			sky_mat.ground_bottom_color = Color(0.04, 0.06, 0.1)
+			sky_mat.ground_horizon_color = Color(0.16, 0.22, 0.4)
+			sky_mat.sun_angle_max = 1.0
+			sun.light_energy = 0.42
+			sun.light_color = Color(0.62, 0.72, 1.0)
 			sun.shadow_enabled = true
-			env.ambient_light_energy = 0.6
-			lantern.light_energy = 0.8
+			env.ambient_light_energy = 0.45
+			env.fog_light_color = Color(0.09, 0.12, 0.25)
+			env.fog_density = 0.45
+			lantern.light_energy = 1.2
 		_:
 			sky_mat.sky_top_color = Color(0.22, 0.52, 0.93)
 			sky_mat.sky_horizon_color = Color(0.72, 0.87, 0.99)

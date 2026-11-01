@@ -9,6 +9,15 @@ const Sim := preload("res://src/sim/sim.gd")
 const STEMS := ["lead", "bass", "perc", "bells", "fast", "arp", "bah", "danger", "secret", "mallet"]
 const MUSIC := 0.75
 const VOICES := 14
+const EXT := ["ogg", "wav", "mp3"]   # audio.c tries ogg, wav, flac, mp3; Godot can't play FLAC
+# audio.c's SOUND_FILE: the sounds the game plays, by their names under assets/
+const SOUND_FILE := [
+	"sfx/coin", "sfx/jump", "sfx/jump2", "sfx/jump3", "sfx/flip", "sfx/longjump", "sfx/spin", "sfx/roll", "sfx/dive",
+	"sfx/cap_throw", "sfx/cap_catch", "sfx/cap_bounce", "sfx/stomp", "sfx/brick", "sfx/gp_spin", "sfx/gp_land",
+	"sfx/spring", "sfx/wall_jump", "sfx/land", "sfx/skid", "sfx/ledge", "sfx/menu_move", "sfx/menu_ok",
+	"sfx/menu_back", "sfx/pause", "sfx/checkpoint", "sfx/tube", "sfx/crumble", "sfx/reveal", "sfx/spit", "sfx/emerge",
+	"sfx/tick", "sfx/bonus", "sfx/hurry", "sfx/moon", "music/jingle_clear", "music/jingle_death",
+]
 
 var assets := ""
 var theme := ""
@@ -39,17 +48,72 @@ func setup(dir: String) -> void:
 		voices.append(p)
 	jingle = AudioStreamPlayer.new()
 	add_child(jingle)
-	var d := DirAccess.open(assets.path_join("sfx"))
-	if d:
-		for f in d.get_files():
-			if f.ends_with(".ogg"):
-				var s := AudioStreamOggVorbis.load_from_file(assets.path_join("sfx").path_join(f))
-				if s:
-					sfx[f.get_basename()] = s
-	for j in ["jingle_clear", "jingle_death"]:
-		var path := assets.path_join("music").path_join(j + ".ogg")
+	for n in SOUND_FILE:
+		var st := load_sound(n)
+		if st:
+			sfx[n.get_file()] = st
+		else:
+			printerr("hatrick: no sound file for %s (assets/%s.ogg, .wav or .mp3)" % [n, n])
+
+
+# assets/<name>.<ext> for the first extension that exists, like audio.c's find(); "" if none.
+func find(name: String) -> String:
+	for e in EXT:
+		var path := assets.path_join(name + "." + e)
 		if FileAccess.file_exists(path):
-			sfx[j] = AudioStreamOggVorbis.load_from_file(path)
+			return path
+	return ""
+
+
+# A sound or music stem by name. The file's contents say what it is, not its extension: a WAV or
+# MP3 saved as .ogg still plays, and a file Godot can't play (Ogg Opus, FLAC, a broken file) is
+# named in one warning instead of the engine's decoder error.
+func load_sound(name: String) -> AudioStream:
+	var path := find(name)
+	return load_path(path) if path != "" else null
+
+
+static func load_path(path: String) -> AudioStream:
+	var b := FileAccess.get_file_as_bytes(path)
+	var why := ""
+	if b.size() < 64:
+		why = "it is empty or cut short"
+	elif b.slice(0, 4).get_string_from_ascii() == "OggS":
+		var p: int = 27 + b[26]   # the first packet: after the page header and its segment table
+		var id := b.slice(p + 1, p + 7).get_string_from_ascii() if b.size() > p + 7 else ""
+		if b[p] == 1 and id == "vorbis":
+			var st := AudioStreamOggVorbis.load_from_buffer(b)
+			if st: return st
+			why = "its Ogg Vorbis data doesn't decode"
+		elif b.slice(p, p + 8).get_string_from_ascii() == "OpusHead":
+			why = "it is Ogg Opus, which Godot can't play (save it as Ogg Vorbis)"
+		else:
+			why = "it is an Ogg file without Vorbis audio"
+	elif b.slice(0, 4).get_string_from_ascii() == "RIFF" and b.slice(8, 12).get_string_from_ascii() == "WAVE":
+		var st := AudioStreamWAV.load_from_buffer(b)
+		if st: return st
+		why = "its WAV data doesn't load"
+	elif b.slice(0, 3).get_string_from_ascii() == "ID3" or (b[0] == 0xFF and (b[1] & 0xE0) == 0xE0):
+		var st := AudioStreamMP3.load_from_buffer(b)
+		if st: return st
+		why = "its MP3 data doesn't decode"
+	elif b.slice(0, 4).get_string_from_ascii() == "fLaC":
+		why = "it is FLAC, which Godot can't play (save it as Ogg Vorbis)"
+	else:
+		why = "it isn't Ogg Vorbis, WAV or MP3"
+	printerr("hatrick: can't play %s: %s" % [path, why])
+	return null
+
+
+# Music stems loop as a whole.
+static func set_loop(st: AudioStream) -> void:
+	if st is AudioStreamWAV:
+		var w: AudioStreamWAV = st
+		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		w.loop_begin = 0
+		w.loop_end = int(w.get_length() * w.mix_rate)
+	elif "loop" in st:
+		st.set("loop", true)
 
 
 func set_theme(name: String, restart := true) -> void:
@@ -66,13 +130,12 @@ func set_theme(name: String, restart := true) -> void:
 		loop_len = 0.0
 		var dir := assets.path_join("music").path_join(name)
 		for s in STEMS:
-			var path := dir.path_join(s + ".ogg")
-			if not FileAccess.file_exists(path):
+			if find("music/%s/%s" % [name, s]) == "":
 				continue
-			var st := AudioStreamOggVorbis.load_from_file(path)
+			var st := load_sound("music/%s/%s" % [name, s])
 			if st == null:
 				continue
-			st.loop = true
+			set_loop(st)
 			loop_len = maxf(loop_len, st.get_length())
 			var p := AudioStreamPlayer.new()
 			p.stream = st

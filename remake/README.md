@@ -25,7 +25,7 @@ moves, Start pauses. Controllers rumble.
 
 ## What's in it so far
 
-This is the first slice: level 1 plays from start to flag in 3D.
+Every level of the C game's campaign plays in 3D, bosses included, and so do the gimmick labs.
 
 - **Movement:** all of it, ported line by line from `hatrick.c`, `movement.h` and the core of
   `cap.h`: runs, the triple jump, long jumps, flips, rolls, dives, ground pounds, wall kicks,
@@ -39,31 +39,45 @@ This is the first slice: level 1 plays from start to flag in 3D.
   bricks, coins, springs, spikes, hidden and crumble blocks, brass tubes into bonus rooms,
   checkpoints, moon coins and the flag. Sky areas get hills, woods and clouds behind them; caves
   a rock wall, stalactites and crystals with a lantern light on Hatrick.
-- **Enemies:** walkers (stacking, hopping on the music's "bah") and buzzers.
+- **Enemies:** walkers (stacking, hopping on the music's "bah") and buzzers; from
+  `enemies.h` masked shy walkers, shell walkers and their shells, cap-thief crows, cloud riders,
+  chained chomps, puffers, stone thwomps, beat blocks and beat pistons; tube dwellers (snappers and
+  seed spitters) and fire bars; the worlds' crabs.
+- **Bosses:** the four from `boss.c` and the two mini-bosses, each with a health bar: the
+  Haberdasher (scissors, his flying top hat that Hatrick can wear), the Big Walker on its seesaw
+  over a lava pit, the Cloud King and his thunderclouds, the Snapper Matriarch and her decoy, the
+  Chief Walker and the Buzz Boss. Arena gates shut behind Hatrick and open when the boss falls.
+- **Gimmicks and worlds:** seesaws, scale lifts, gold blocks, flip flowers (gravity, speed and
+  brick swaps), turning doors, cannons, propeller fans, rising lava, auto-scroll, night areas;
+  `worlds.c`'s snow, sand, jelly, flowers, clock blocks and the avalanche; postcards and secret
+  exits (secret levels show up in the level select once found).
 - **The rest:** HUD with hearts and moon coin slots, level card, course clear tally, iris wipes,
   adaptive music (the same stems and rules as the C game's director), sound effects, title
   screen, level select and pause screen. Cleared levels and moon coins are saved in Godot's
   user folder (`~/.local/share/godot/app_userdata/Hattrick/progress.json` on Linux).
 
-Not yet: the later enemies (shell walkers, tube dwellers, fire bars, the bosses), the gimmick
-levels and worlds, items and the shop, the overworld map. Later levels can be played from the
-level select, but whatever isn't ported is missing from them.
+Not yet: items and the shop, the hats, the overworld map, the 8-bit room's pixel look.
 
 ## How it fits together
 
 | Path | What |
 |---|---|
 | `src/sim/levels.gd` | reads `levels.txt` and `worlds.txt` |
-| `src/sim/sim.gd` | the game logic, ported from the C game; draws nothing |
+| `src/sim/sim_core.gd` | the game logic, ported from `hatrick.c`, `movement.h`, `cap.h`; draws nothing |
+| `src/sim/sim_ext.gd` | `enemies.h`, `worlds.c` and the level side of `collect.h` |
+| `src/sim/sim_gim.gd` | `gimmicks.h` |
+| `src/sim/sim.gd` | `boss.c`; the class everything uses (each file extends the one before) |
 | `src/main.gd` | runs the sim at 60 Hz, feeds the views, title / pause / level flow |
 | `src/view/level_view.gd` | the level's 3D world, updated from the sim's changed cells |
 | `src/view/hatrick.gd` | Hatrick's model and animation |
 | `src/view/actors.gd` | enemies and the thrown cap |
+| `src/view/hazards.gd` | fire bars, tube dwellers, gimmicks, rising lava, the avalanche, postcards |
+| `src/view/boss_view.gd` | the bosses, their arenas and shots |
 | `src/view/fx.gd` | particles and score pop-ups |
 | `src/view/backdrop.gd`, `lighting.gd`, `camera_rig.gd` | scenery, sky and light, the camera |
 | `src/ui/` | HUD and menus |
 | `src/audio/audio.gd` | music stems and sound effects |
-| `shaders/` | toon shading and outlines, the ground, blocks, coins, cloth |
+| `shaders/` | toon shading and outlines, the ground, blocks, coins, cloth, lava |
 
 The sim keeps the C names (`hx`, `hvy`, `st`, `cst`...) so the two read side by side. The views
 only read its state and its events (`ev`: sounds, particles, kills; `dirty`: changed cells).
@@ -83,6 +97,16 @@ godot --path remake --script res://tools/booth.gd -- /tmp/booth
 # play a recorded route in the full game and save screenshots after some steps
 # (--skip 250 runs the first 250 steps without drawing them, much faster on a slow GPU)
 godot --path remake -- --replay ../tas/1.tas --shots 60,300 --out /tmp/shots
+# the same from a boss arena's entrance (--boss N) or any cell (--at ROOM,X,Y)
+godot --path remake -- --level 16 --boss 1 --replay route.tas --shots 400 --out /tmp/shots
+
+# check the port against the C game frame by frame: builds tools/ctrace.c from hatrick.c, replays
+# the route through both and prints the first difference ("N lines match" when there is none).
+# SIM_BOSS=N starts at a boss arena, SIM_AT=ROOM,X,Y on a cell, SIM_RESPAWN=1 plays on after deaths.
+remake/tools/difftrace.sh 3 tas/3.tas
+SIM_BOSS=1 remake/tools/difftrace.sh 16 route.tas
+# find a route that beats a boss in the C game (a greedy search with random rollouts)
+gcc -O2 -w remake/tools/bossbot.c -o bossbot && ./bossbot 16 1 > route.tas
 ```
 
 Fonts: Fredoka (SIL Open Font License, `fonts/Fredoka-OFL.txt`).
