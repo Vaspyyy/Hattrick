@@ -13,3 +13,6 @@ __pycache__/
 /vendor/stb_image.o
 /gfx-template/
 /backups/
+# the 2.5D remake: Godot's cache and the Godot build play.sh downloads
+/remake/.godot/
+/remake/.godot-bin/
