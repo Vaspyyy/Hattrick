@@ -73,7 +73,7 @@ func _ready() -> void:
 	for e in lv.problems:   # once each, the way the C game reports them
 		printerr("hatrick: ", e)
 	sim = Sim.new()
-	sim.setup(lv.levels, lv.ncampaign)
+	sim.setup(lv.levels, lv.ncampaign, assets)
 	_load_progress()
 	world = Node3D.new()
 	world.name = "World"

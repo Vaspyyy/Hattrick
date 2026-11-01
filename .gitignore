@@ -16,3 +16,4 @@ __pycache__/
 # the 2.5D remake: Godot's cache and the Godot build play.sh downloads
 /remake/.godot/
 /remake/.godot-bin/
+/remake/.ctrace/

@@ -6,6 +6,8 @@
 // usage: ctrace LEVEL FILE.tas       (ctrace list: the levels in game order)
 //   SIM_RESPAWN=1  keep going after a death (checkpoints), as ./sim does
 //   SIM_BOSS=N     after the start, put Hatrick at the entrance of the level's boss arena N (0, 1)
+//   SIM_AT=R,X,Y   after the start, put Hatrick on cell X, Y of area R (to test a bonus room's gimmicks)
+// ctrace find LEVEL CHARS prints where those map characters are.
 #define SIM
 #define SC 1
 #define main hatrick_sim_main
@@ -19,7 +21,7 @@ static unsigned mapsum(void) {   // the current area's live tiles
 }
 
 static void line(int frame, const char *b) {
-  printf("%d %s x=%.1f y=%.1f vx=%d vy=%d st=%d gnd=%d cap=%d room=%d score=%d wall=%d moons=%d", frame, b, hx/256., hy/256., hvx, hvy, st, gnd, cst, room, score, wall, wd.moongot);
+  printf("%d %s x=%d y=%d vx=%d vy=%d st=%d gnd=%d cap=%d room=%d score=%d wall=%d moons=%d", frame, b, hx, hy, hvx, hvy, st, gnd, cst, room, score, wall, wd.moongot);
   printf(" c=%d hp=%d left=%d cx=%d,%d pow=%d carry=%d map=%u", coins, hp, left, cxp >> 8, cyp >> 8, capx_pow, capx_carry, mapsum());
   for (int i = 0; i < ne; i++) { const E *e = en + i; if (e->a && e->r == room) printf(" e%d=%d:%d,%d,%d,%d,%d", i, e->t, e->x >> 8, e->y >> 8, e->s, e->u, e->w); }
   const Level *L = LV + lvl;
@@ -65,7 +67,13 @@ int main(int argc, char **argv) {
     }
     return 0;
   }
-  if (argc < 3) { fprintf(stderr, "usage: ctrace LEVEL FILE.tas | ctrace list\n"); return 3; }
+  if (argc == 4 && !strcmp(argv[1], "find")) {   // where the map characters argv[3] are in level argv[2]
+    const Level *L = LV + atoi(argv[2]);
+    for (int r = 0; r < L->nroom; r++) for (int y = 0; y < L->room[r].h; y++) for (int x = 0; x < L->room[r].w; x++)
+      if (GRID(L->room + r, x, y) && strchr(argv[3], GRID(L->room + r, x, y))) printf("%c room=%d x=%d y=%d\n", GRID(L->room + r, x, y), r, x, y);
+    return 0;
+  }
+  if (argc < 3) { fprintf(stderr, "usage: ctrace LEVEL FILE.tas | ctrace list | ctrace find LEVEL CHARS\n"); return 3; }
   lvl = atoi(argv[1]);
   if (lvl < 0 || lvl >= NLEVEL) { fprintf(stderr, "ctrace: no level %d (there are %d)\n", lvl, NLEVEL); return 3; }
   load();
@@ -76,6 +84,8 @@ int main(int argc, char **argv) {
     Boss b = bz[n];
     spawn(b.room, ((b.ax0 + 4)*8) << 8, ((b.my - 3)*8) << 8);
   }
+  const char *at = getenv("SIM_AT");   // SIM_AT=ROOM,X,Y: start standing on that cell (tiles)
+  if (at && *at) { int r = 0, x = 0, y = 0; sscanf(at, "%d,%d,%d", &r, &x, &y); spawn(r, (x*8 + 1) << 8, (y*8 - 3) << 8); }
   FILE *f = fopen(argv[2], "r");
   if (!f) { fprintf(stderr, "ctrace: cannot read %s\n", argv[2]); return 3; }
   int respawn = getenv("SIM_RESPAWN") && *getenv("SIM_RESPAWN"), n, frame = 0;

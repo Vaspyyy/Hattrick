@@ -21,7 +21,7 @@ func _init() -> void:
 		quit(3)
 		return
 	var sim := Sim.new()
-	sim.setup(lv.levels, lv.ncampaign)
+	sim.setup(lv.levels, lv.ncampaign, assets)
 	sim.load_level(args[0].to_int())
 	var trace := args.size() > 2 and args[2] == "trace"
 	var f := FileAccess.open(args[1], FileAccess.READ)
