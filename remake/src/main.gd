@@ -70,8 +70,8 @@ func _ready() -> void:
 	if not lv.load_dir(assets) or lv.levels.is_empty():
 		_fatal("Couldn't read the levels in %s" % assets)
 		return
-	for e in lv.problems:
-		push_warning(e)
+	for e in lv.problems:   # once each, the way the C game reports them
+		printerr("hatrick: ", e)
 	sim = Sim.new()
 	sim.setup(lv.levels, lv.ncampaign)
 	_load_progress()
