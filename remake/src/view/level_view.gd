@@ -19,12 +19,25 @@ const BEV := 0.28       # radius of the rounded grass edge
 const NB := 4           # segments in that edge
 const BOTTOM := -14.0   # the bottom row reaches down out of sight
 const MARGIN := 18      # ground continues past both ends of the area (the camera sees wider at the back)
-const DYN := [2, 5, 6, 15, 16, 24, 25, 26, 27, 28, 29]
+const DYN := [2, 5, 6, 15, 16, 20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 31]
+const STATIC_BLOCKS := [17, 18, 19]   # snow, quicksand, jelly (worlds.c)
+# worlds.c's theme colours for the ground: grass light, grass dark, dirt light, dirt dark, pebbles
+const THEME_GROUND := [
+	[],
+	[Color("fff4c0"), Color("f0d890"), Color("e8c880"), Color("c8a464"), Color("c8a060")],   # beach: sand
+	[Color("ffffff"), Color("d8e8f8"), Color("8a9ab8"), Color("6a7890"), Color("8aa0c0")],   # frost: snow on blue rock
+	[Color("b8f890"), Color("78d868"), Color("f4bcd4"), Color("d890b8"), Color("8a5a9a")],   # crayon: pastels
+	[Color("f0d070"), Color("c89838"), Color("8a6450"), Color("664636"), Color("4a2a18")],   # clock: brass and wood
+	[Color("f8d888"), Color("e0b060"), Color("d89a58"), Color("b07838"), Color("a86c30")],   # desert
+]
 
 var sim
 var room := -1
 var lw := 0
 var lh := 0
+var stride := 0         # cells a row of the live map (a room a door can turn is stored square)
+var mw := 0             # the file's size of the area (the surface layer keeps it)
+var mh := 0
 var cave := 0
 var map: PackedByteArray
 var static_root: Node3D
@@ -42,6 +55,9 @@ var moon_home := 0      # moon coins brought home on an earlier visit: drawn pal
 var t := 0.0
 var M := {}             # materials
 var _st: SurfaceTool
+var static_map: PackedByteArray   # the map as the static meshes show it
+var skip_stone := {}    # cells of stone another view draws (gold blocks, cannons, fans, beat blocks)
+var jelly := {}         # cell index -> squash time (a jelly block bounced on)
 
 
 func _init() -> void:
@@ -70,6 +86,29 @@ func _init() -> void:
 	M.coin = _coin_mat(Color(1.0, 0.74, 0.12), Color(0.85, 0.42, 0.02), 0.35)
 	M.coin_star = _coin_mat(Color(1.0, 0.93, 0.5), Color(1.0, 0.65, 0.1), 0.5)
 	M.water = _water_mat()
+	M.snow = _block(3, Color(0.86, 0.91, 0.97), Color(0.6, 0.69, 0.79), Color(1, 1, 1), 0.75)
+	M.sand = _block(2, Color(0.85, 0.67, 0.38), Color(0.62, 0.47, 0.24), Color(0.95, 0.82, 0.55), 0.95)
+	var jm := StandardMaterial3D.new()
+	jm.albedo_color = Color(0.36, 0.84, 0.42, 0.82)
+	jm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	jm.roughness = 0.12
+	jm.rim_enabled = true
+	jm.rim = 0.6
+	jm.emission_enabled = true
+	jm.emission = Color(0.05, 0.2, 0.06)
+	M.jelly = jm
+	M.clock_a = _block(5, Color(0.24, 0.42, 0.88), Color(0.08, 0.14, 0.42), Color(0.6, 0.72, 1.0), 0.45)
+	M.clock_b = _block(5, Color(0.88, 0.23, 0.29), Color(0.42, 0.08, 0.12), Color(1.0, 0.63, 0.66), 0.45)
+	M.clock_a_warn = _block(5, Color(0.6, 0.72, 1.0), Color(0.24, 0.42, 0.88), Color(0.9, 0.95, 1.0), 0.45)
+	M.clock_b_warn = _block(5, Color(1.0, 0.63, 0.66), Color(0.88, 0.23, 0.29), Color(1.0, 0.9, 0.9), 0.45)
+	M.ghost_a = Mats.unshaded(Color(0.3, 0.45, 0.95, 0.2))
+	M.ghost_b = Mats.unshaded(Color(0.95, 0.3, 0.35, 0.2))
+	M.clockface = Mats.toon(Color(1.0, 0.96, 0.82), false, 0.6, 0.2)
+	M.ink = Mats.toon(Color(0.16, 0.1, 0.08), false)
+	M.petal = Mats.toon(Color(1.0, 0.36, 0.48), true, 0.5, 0.4, 0.015)
+	M.petal2 = Mats.toon(Color(1.0, 1.0, 1.0), true, 0.5, 0.4, 0.015)
+	M.bloom = Mats.toon(Color(1.0, 0.88, 0.25), true, 0.5, 0.4, 0.015)
+	M.stem = Mats.toon(Color(0.2, 0.6, 0.25), true, 0.6, 0.3, 0.012)
 
 
 func _terrain(grass: bool) -> ShaderMaterial:
@@ -128,13 +167,13 @@ func _t(tx: int, ty: int) -> int:   # the map, with the ends of the area continu
 		return 0
 	if ty >= lh:
 		return 1
-	return map[ty * lw + clampi(tx, 0, lw - 1)]
+	return map[ty * stride + clampi(tx, 0, lw - 1)]
 
 
 func _raw(tx: int, ty: int) -> int:
 	if tx < 0 or tx >= lw or ty < 0 or ty >= lh:
 		return 0
-	return map[ty * lw + tx]
+	return map[ty * stride + tx]
 
 
 func _solid(t: int) -> bool:
@@ -186,8 +225,21 @@ func build(s) -> void:
 	room = s.room
 	lw = s.lw
 	lh = s.lh
+	stride = s.rs[room]
+	mw = s.L.rooms[room].w
+	mh = s.L.rooms[room].h
 	map = s.wd.rm[room]
 	cave = s.L.rooms[room].cave
+	var th: int = s.L.theme
+	if th > 0 and th < THEME_GROUND.size() and not cave:
+		var g := _terrain(true)
+		var c: Array = THEME_GROUND[th]
+		g.set_shader_parameter("grass_hi", c[0]); g.set_shader_parameter("grass_lo", c[1])
+		g.set_shader_parameter("dirt_hi", c[2]); g.set_shader_parameter("dirt_lo", c[3]); g.set_shader_parameter("pebble", c[4])
+		M.ground_theme = g
+	else:
+		M.erase("ground_theme")
+	_find_skips()
 	for c in get_children():
 		c.queue_free()
 	static_root = Node3D.new()
@@ -201,12 +253,15 @@ func build(s) -> void:
 	_build_ground()
 	_build_slopes()
 	_build_stone()
+	_build_blocks()
 	_build_spikes()
 	_build_tubes()
 	_build_water()
+	static_map = map.duplicate()
+	jelly.clear()
 	for ty in lh:
 		for tx in lw:
-			if map[ty * lw + tx] in DYN:
+			if map[ty * stride + tx] in DYN:
 				_make_cell(tx, ty)
 	_build_crumbles()
 	_build_checks()
@@ -218,12 +273,77 @@ func rebuild_static() -> void:
 	static_root.queue_free()
 	static_root = Node3D.new()
 	add_child(static_root)
+	_find_skips()
 	_build_ground()
 	_build_slopes()
 	_build_stone()
+	_build_blocks()
 	_build_spikes()
 	_build_tubes()
 	_build_water()
+	static_map = map.duplicate()
+
+
+# Stone cells that are something else: gimmick objects (gold blocks, cannons, fans) and the beat
+# blocks of enemies.h, which the hazards and actors views draw (and move) themselves.
+func _find_skips() -> void:
+	skip_stone.clear()
+	for o in sim.wd.gw.ob:
+		if o.room == room and (o.kind == 65 or o.kind == 69 or o.kind == 87):
+			skip_stone[o.y * stride + o.x] = true
+	for e in sim.wd.en:
+		if e.a and e.r == room and e.t == Sim.T_BEATPLAT:
+			var x0: int = (e.x >> 11) + e.s
+			for i in e.w:
+				skip_stone[(e.y >> 11) * stride + x0 + i] = true
+
+
+func _beat_cell(tx: int, ty: int) -> bool:   # within reach of a beat block run (it moves two tiles)
+	for e in sim.wd.en:
+		if e.a and e.r == room and e.t == Sim.T_BEATPLAT and ty == e.y >> 11 and tx >= (e.x >> 11) - 2 and tx < (e.x >> 11) + e.w + 2:
+			return true
+	return false
+
+
+# Snow, quicksand and jelly blocks (worlds.c): one MultiMesh each.
+func _build_blocks() -> void:
+	for t in STATIC_BLOCKS:
+		var pts: Array = []
+		for ty in lh:
+			for tx in lw:
+				if map[ty * stride + tx] == t:
+					pts.append(Vector2i(tx, ty))
+		if pts.is_empty():
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_custom_data = true
+		if t == 19:
+			mm.mesh = Meshes.rounded_box(Vector3(0.94, 0.94, 0.94), 0.22, 3)
+		elif t == 18:
+			mm.mesh = Meshes.rounded_box(Vector3(1.0, 0.9, 1.6), 0.04, 1)
+		else:
+			mm.mesh = Meshes.rounded_box(Vector3.ONE, 0.12, 2)
+		mm.instance_count = pts.size()
+		for i in pts.size():
+			var p: Vector2i = pts[i]
+			var at := cell_pos(p.x, p.y) + (Vector3(0, -0.05, 0) if t == 18 else Vector3.ZERO)
+			mm.set_instance_transform(i, Transform3D(Basis(), at))
+			mm.set_instance_custom_data(i, Color(fposmod(sin(p.x * 12.9898 + p.y * 78.233) * 43758.5453, 1.0), 0, 0, 0))
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = M.jelly if t == 19 else (M.sand if t == 18 else M.snow)
+		if t == 19:
+			mmi.name = "jelly"
+		static_root.add_child(mmi)
+		if t == 17:   # a soft snow cap on blocks open to the sky
+			for p in pts:
+				if map[maxi(p.y - 1, 0) * stride + p.x] != 17 and not _solid(_t(p.x, p.y - 1)):
+					var cap := MeshInstance3D.new()
+					cap.mesh = Meshes.ellipsoid(Vector3(0.56, 0.16, 0.56), 12, 6)
+					cap.position = cell_pos(p.x, p.y) + Vector3(0, 0.5, 0)
+					cap.material_override = Mats.toon(Color(1, 1, 1), false, 0.8, 0.5)
+					static_root.add_child(cap)
 
 
 func _v(p: Vector3, n: Vector3, top: float, depth: float) -> Array:
@@ -269,7 +389,7 @@ func _build_ground() -> void:
 			var sl := _surf(tx, ty, false)
 			var sr := _surf(tx, ty, true)
 			var ice := 0.0
-			if tx >= 0 and tx < lw and sim.mvs[room][ty * lw + tx] == Sim.MV_ICE:
+			if tx >= 0 and tx < mw and ty < mh and sim.mvs[room][ty * mw + tx] == Sim.MV_ICE:
 				ice = 1.0
 			var topv := 2.0 if ice > 0.0 else 1.0
 			var yf := y1 - BEV if top_open else y1   # where the flat front face stops
@@ -316,7 +436,7 @@ func _build_ground() -> void:
 		return
 	var mi := MeshInstance3D.new()
 	mi.mesh = _st.commit()
-	mi.material_override = M.ground_cave if cave else M.ground
+	mi.material_override = M.ground_cave if cave else M.get("ground_theme", M.ground)
 	static_root.add_child(mi)
 
 
@@ -354,7 +474,7 @@ func _build_slopes() -> void:
 	if any:
 		var mi := MeshInstance3D.new()
 		mi.mesh = _st.commit()
-		mi.material_override = M.ground_cave if cave else M.ground
+		mi.material_override = M.ground_cave if cave else M.get("ground_theme", M.ground)
 		static_root.add_child(mi)
 	if stone_slopes.is_empty():
 		return
@@ -393,7 +513,7 @@ func _build_stone() -> void:
 	var pts: Array = []
 	for ty in lh:
 		for tx in lw:
-			if map[ty * lw + tx] == 4:
+			if map[ty * stride + tx] == 4 and not skip_stone.has(ty * stride + tx):
 				pts.append(Vector2i(tx, ty))
 	if pts.is_empty():
 		return
@@ -418,7 +538,7 @@ func _build_spikes() -> void:
 	var plate := Meshes.rounded_box(Vector3(0.96, 0.14, 0.92), 0.04, 1)
 	for ty in lh:
 		for tx in lw:
-			if map[ty * lw + tx] != 3:
+			if map[ty * stride + tx] != 3:
 				continue
 			var down := _solid(_t(tx, ty - 1)) and not _solid(_t(tx, ty + 1))
 			var n := Node3D.new()
@@ -454,8 +574,8 @@ func _build_tubes() -> void:
 		var n := 0
 		if vertical:
 			while _raw(x, y + step * (n + 1)) == 10:
-				used[(y + step * (n + 1)) * lw + x] = true
-				used[(y + step * (n + 1)) * lw + x + 1] = true
+				used[(y + step * (n + 1)) * stride + x] = true
+				used[(y + step * (n + 1)) * stride + x + 1] = true
 				n += 1
 			var cx := float(x + 1)
 			var my := float(lh - y) - 0.5
@@ -469,8 +589,8 @@ func _build_tubes() -> void:
 				_body(Vector3(cx, (y_a + y_b) * 0.5, 0), absf(y_a - y_b), true)
 		else:
 			while _raw(x + step * (n + 1), y) == 11:
-				used[y * lw + x + step * (n + 1)] = true
-				used[(y + 1) * lw + x + step * (n + 1)] = true
+				used[y * stride + x + step * (n + 1)] = true
+				used[(y + 1) * stride + x + step * (n + 1)] = true
 				n += 1
 			var cy := float(lh - y - 1)
 			var mx := x + 0.5
@@ -482,14 +602,14 @@ func _build_tubes() -> void:
 	# body cells that no mouth reaches: short sections in pairs
 	for ty in lh:
 		for tx in lw:
-			var i := ty * lw + tx
+			var i := ty * stride + tx
 			if used.has(i):
 				continue
 			if map[i] == 10 and _raw(tx + 1, ty) == 10:
 				used[i] = true; used[i + 1] = true
 				_body(Vector3(tx + 1, lh - ty - 0.5, 0), 1.0, true)
 			elif map[i] == 11 and _raw(tx, ty + 1) == 11:
-				used[i] = true; used[i + lw] = true
+				used[i] = true; used[i + stride] = true
 				_body(Vector3(tx + 0.5, lh - ty - 1, 0), 1.0, false)
 
 
@@ -538,9 +658,9 @@ func _build_water() -> void:
 	_st = SurfaceTool.new()
 	_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var any := false
-	for ty in lh:
-		for tx in lw:
-			var i := ty * lw + tx
+	for ty in mini(lh, mh):   # the surface layer keeps the file's layout, mw cells a row
+		for tx in mini(lw, mw):
+			var i := ty * mw + tx
 			if mv[i] == Sim.MV_POLE:
 				var p := MeshInstance3D.new()
 				p.mesh = Meshes.cylinder(0.09, 0.09, 1.6, 12)
@@ -554,12 +674,12 @@ func _build_water() -> void:
 			var x0 := float(tx)
 			var x1 := x0 + 1.0
 			var y1 := float(lh - ty)
-			if ty > 0 and mv[i - lw] != Sim.MV_WATER:
+			if ty > 0 and mv[i - mw] != Sim.MV_WATER:
 				y1 -= 0.15
 			var y0 := float(lh - ty - 1)
 			_quad(_v(Vector3(x0, y0, 1.0), Vector3.BACK, 0, 0), _v(Vector3(x1, y0, 1.0), Vector3.BACK, 0, 0),
 				_v(Vector3(x1, y1, 1.0), Vector3.BACK, 0, 0), _v(Vector3(x0, y1, 1.0), Vector3.BACK, 0, 0))
-			if ty == 0 or mv[i - lw] != Sim.MV_WATER:
+			if ty == 0 or mv[i - mw] != Sim.MV_WATER:
 				_quad(_v(Vector3(x0, y1, -1.5), Vector3.UP, 0, 0), _v(Vector3(x1, y1, -1.5), Vector3.UP, 0, 0),
 					_v(Vector3(x1, y1, 1.0), Vector3.UP, 0, 0), _v(Vector3(x0, y1, 1.0), Vector3.UP, 0, 0))
 	if any:
@@ -572,7 +692,7 @@ func _build_water() -> void:
 
 # ---------- cells that change ----------
 func _make_cell(tx: int, ty: int) -> void:
-	var i := ty * lw + tx
+	var i := ty * stride + tx
 	var t: int = map[i]
 	var n: Node3D
 	match t:
@@ -587,6 +707,12 @@ func _make_cell(tx: int, ty: int) -> void:
 		5: n = _spring()
 		26: n = _post()
 		27: n = _switch()
+		20: n = _flower()
+		21: n = _clock(M.clock_a, false)
+		30: n = _clock(M.clock_b, false)
+		22: n = _clock(M.ghost_a, true)
+		31: n = _clock(M.ghost_b, true)
+		4: n = _gate()
 	if n == null:
 		return
 	n.position = cell_pos(tx, ty)
@@ -664,6 +790,81 @@ func _post() -> Node3D:   # a cap post: Hatrick's cap hangs on it
 	k.position.y = 0.5
 	k.material_override = M.gold
 	n.add_child(k)
+	return n
+
+
+func _flower() -> Node3D:   # worlds.c: a smiling flower to pick up, all of a level's for a big bonus
+	var n := Node3D.new()
+	var stem := MeshInstance3D.new()
+	stem.mesh = Meshes.cylinder(0.04, 0.05, 0.5, 8)
+	stem.position.y = -0.25
+	stem.material_override = M.stem
+	n.add_child(stem)
+	var leaf := MeshInstance3D.new()
+	leaf.mesh = Meshes.ellipsoid(Vector3(0.14, 0.05, 0.08))
+	leaf.position = Vector3(0.1, -0.3, 0)
+	leaf.rotation_degrees.z = 30
+	leaf.material_override = M.stem
+	n.add_child(leaf)
+	var head := Node3D.new()
+	head.name = "head"
+	head.position.y = 0.08
+	n.add_child(head)
+	for i in 6:
+		var a := TAU * i / 6.0
+		var p := MeshInstance3D.new()
+		p.mesh = Meshes.ellipsoid(Vector3(0.13, 0.13, 0.05), 12, 6)
+		p.position = Vector3(cos(a) * 0.2, sin(a) * 0.2, -0.02)
+		p.material_override = M.petal if i & 1 else M.petal2
+		head.add_child(p)
+	var c := MeshInstance3D.new()
+	c.mesh = Meshes.ellipsoid(Vector3(0.15, 0.15, 0.08), 14, 8)
+	c.material_override = M.bloom
+	head.add_child(c)
+	for sx in [-1, 1]:
+		var e := MeshInstance3D.new()
+		e.mesh = Meshes.ellipsoid(Vector3(0.025, 0.035, 0.02), 8, 4)
+		e.position = Vector3(sx * 0.05, 0.03, 0.075)
+		e.material_override = M.ink
+		head.add_child(e)
+	var sm := MeshInstance3D.new()
+	sm.mesh = Meshes.torus(0.045, 0.06, 12, 4)
+	sm.position = Vector3(0, -0.035, 0.07)
+	sm.rotation_degrees.x = 90
+	sm.scale = Vector3(1, 1, 0.5)
+	sm.material_override = M.ink
+	head.add_child(sm)
+	return n
+
+
+func _clock(m: Material, ghost: bool) -> Node3D:   # worlds.c: clock blocks swap every two beats
+	if ghost:
+		var g := MeshInstance3D.new()
+		g.mesh = Meshes.rounded_box(Vector3(0.9, 0.9, 0.9), 0.1, 1)
+		g.material_override = m
+		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		return g
+	var n := _box(m, 0.1)
+	n.name = "clock"
+	var face := MeshInstance3D.new()
+	face.mesh = Meshes.cylinder(0.3, 0.3, 0.04, 20)
+	face.rotation_degrees.x = 90
+	face.position.z = 0.5
+	face.material_override = M.clockface
+	n.add_child(face)
+	for h in 2:
+		var hand := MeshInstance3D.new()
+		hand.name = "hand%d" % h
+		hand.mesh = Meshes.rounded_box(Vector3(0.05, 0.22 if h else 0.16, 0.02), 0.01, 1)
+		hand.position = Vector3(0, 0, 0.53)
+		hand.material_override = M.ink
+		n.add_child(hand)
+	return n
+
+
+func _gate() -> Node3D:   # boss.c: a stone gate cell shut behind Hatrick
+	var n := _box(M.stone_cave if cave else M.stone, 0.08)
+	n.name = "gate"
 	return n
 
 
@@ -836,19 +1037,30 @@ func _build_flag() -> void:
 
 
 # ---------- per step: the sim's changes ----------
+func _static_kind(t: int) -> bool:   # drawn by the static meshes
+	return t != 0 and t != 13 and t != 14 and not (t in DYN)
+
+
 func apply() -> void:
 	var restatic := false
 	for d in sim.dirty:
 		if d[0] != room:
 			continue
-		var i: int = d[2] * lw + d[1]
+		var i: int = d[2] * stride + d[1]
 		if cells.has(i):
 			cells[i].queue_free()
 			cells.erase(i)
 		var t: int = map[i]
+		var old: int = static_map[i]
 		if t in DYN:
 			_make_cell(d[1], d[2])
-		elif t != 0 and t != 13 and t != 14:
+			restatic = restatic or (_static_kind(old) and not skip_stone.has(i))
+		elif t == 4 and old != 4:   # a gate shutting, a beat block moving in
+			if not _beat_cell(d[1], d[2]):
+				_make_cell(d[1], d[2])
+		elif t == 0 and old == 4 and (skip_stone.has(i) or _beat_cell(d[1], d[2])):
+			pass
+		elif t != old and (_static_kind(t) or _static_kind(old)):
 			restatic = true
 	sim.dirty.clear()
 	if restatic:
@@ -859,10 +1071,12 @@ func on_event(e: Array) -> void:
 	match e[0]:
 		"spring":
 			if e[1] == room:
-				anims[e[3] * lw + e[2]] = ["spring", 0.0]
+				anims[e[3] * stride + e[2]] = ["spring", 0.0]
 		"reveal":
 			if e[1] == room:
-				anims[e[3] * lw + e[2]] = ["bump", 0.0]
+				anims[e[3] * stride + e[2]] = ["bump", 0.0]
+		"jelly":
+			jelly[e[2] * stride + e[1]] = 0.0
 
 
 # ---------- per frame ----------
@@ -875,7 +1089,7 @@ func update(dt: float) -> void:
 		if n == null or not is_instance_valid(n):
 			anims.erase(i)
 			continue
-		var base := cell_pos(i % lw, i / lw)
+		var base := cell_pos(i % stride, i / stride)
 		if a[0] == "bump":
 			n.position = base + Vector3(0, sin(minf(a[1] / 0.2, 1.0) * PI) * 0.35, 0)
 			if a[1] > 0.2:
@@ -891,6 +1105,27 @@ func update(dt: float) -> void:
 				coil.scale.y = 1.0
 				top.position.y = 0.3
 				anims.erase(i)
+	var warn: bool = sim.tickwarn and (sim.fr & 4)
+	var beat: float = sim.beatpos() / 256.0 if sim.tick_.size() else 0.0
+	for i in cells:
+		var n: Node3D = cells[i]
+		if not is_instance_valid(n):
+			continue
+		var tt: int = map[i]
+		if tt == 20:
+			var h: Node3D = n.get_node("head")
+			h.rotation.z = sin(t * 3.0 + i) * 0.25
+			h.position.y = 0.08 + sin(t * 4.0 + i * 0.7) * 0.04
+		elif tt == 21 or tt == 30:
+			var mi := n as MeshInstance3D
+			if mi:
+				mi.material_override = (M.clock_a_warn if tt == 21 else M.clock_b_warn) if warn else (M.clock_a if tt == 21 else M.clock_b)
+			n.get_node("hand0").rotation.z = -floorf(beat) * TAU / 8.0
+			n.get_node("hand1").rotation.z = -floorf(beat / 2.0) * TAU / 4.0
+	for i in jelly.keys():
+		jelly[i] += dt
+		if jelly[i] > 0.5:
+			jelly.erase(i)
 	for c in crumbles:
 		var cr = c[0]
 		var n: Node3D = c[1]

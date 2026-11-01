@@ -10,6 +10,8 @@
 #   --skip N              with --replay: run the first N steps without drawing them (fast)
 #   --assets DIR          the levels, music and sounds (default: ../assets)
 #   --snap SECONDS        save a screenshot (to --out) after this long and quit
+#   --boss N              start at boss arena N's entrance (like tools/xtrace.gd's SIM_BOSS)
+#   --at ROOM,X,Y         start standing on that cell (tiles; like xtrace.gd's SIM_AT)
 extends Node
 
 const Levels := preload("res://src/sim/levels.gd")
@@ -18,6 +20,8 @@ const LevelView := preload("res://src/view/level_view.gd")
 const Backdrop := preload("res://src/view/backdrop.gd")
 const Hatrick := preload("res://src/view/hatrick.gd")
 const Actors := preload("res://src/view/actors.gd")
+const Hazards := preload("res://src/view/hazards.gd")
+const BossView := preload("res://src/view/boss_view.gd")
 const Fx := preload("res://src/view/fx.gd")
 const CameraRig := preload("res://src/view/camera_rig.gd")
 const Lighting := preload("res://src/view/lighting.gd")
@@ -38,6 +42,8 @@ var level
 var backdrop
 var hero
 var actors
+var hazards
+var bosses
 var fx
 var cam
 var hud
@@ -49,7 +55,7 @@ var mode := "title"        # title, play, pause
 var prev_hero := Vector2.ZERO
 var prev_cam := Vector2.ZERO
 var built_room := -1
-var progress := {"cleared": [], "moons": {}}
+var progress := {"cleared": [], "moons": {}, "cards": [], "secrets": []}
 var title_t := 0.0
 # a recorded route driving the game (tests and screenshots)
 var replay := PackedInt32Array()
@@ -60,6 +66,8 @@ var skip := 0
 var steps := 0
 var start_level_arg := -1
 var snap := -1.0
+var boss_arg := -1
+var at_arg := ""
 
 
 func _ready() -> void:
@@ -90,6 +98,10 @@ func _ready() -> void:
 	world.add_child(blob)
 	actors = Actors.new()
 	world.add_child(actors)
+	hazards = Hazards.new()
+	world.add_child(hazards)
+	bosses = BossView.new()
+	world.add_child(bosses)
 	fx = Fx.new()
 	world.add_child(fx)
 	cam = CameraRig.new()
@@ -108,6 +120,16 @@ func _ready() -> void:
 		push_warning("--headless draws nothing, so no screenshots will be saved (xvfb-run -a gives Godot a display)")
 	if not replay.is_empty():
 		start_level(maxi(start_level_arg, 0))
+		if boss_arg >= 0 and boss_arg < sim.bz.size():
+			var b = sim.bz[boss_arg]
+			sim.spawn(b.room, ((b.ax0 + 4) * 8) << 8, ((b.my - 3) * 8) << 8)
+			sim.ev.clear()
+			_rebuild()
+		if at_arg != "":
+			var p := at_arg.split(",")
+			sim.spawn(p[0].to_int(), (p[1].to_int() * 8 + 1) << 8, (p[2].to_int() * 8 - 3) << 8)
+			sim.ev.clear()
+			_rebuild()
 		mode = "play"
 	elif start_level_arg >= 0:
 		start_level(start_level_arg)
@@ -132,6 +154,8 @@ func _args() -> void:
 			"--skip": skip = v.to_int(); i += 1
 			"--assets": assets = v; i += 1
 			"--snap": snap = v.to_float(); i += 1
+			"--boss": boss_arg = v.to_int(); i += 1
+			"--at": at_arg = v; i += 1
 		i += 1
 
 
@@ -215,11 +239,17 @@ func _cleared(name: String) -> bool:
 
 # ---------- flow ----------
 func start_level(l: int) -> void:
+	sim.cardgot = lv.levels[l].name in progress.cards
+	secret_exit = false
 	sim.load_level(l)
 	sim.ev.clear()
 	_rebuild()
 	var nm: String = sim.L.name
-	hud.show_card(nm, "WORLD %d" % (l + 1) if l < sim.NLV else "")
+	var sub := ""
+	if l < sim.NLV: sub = "WORLD %d" % (l + 1)
+	elif sim.L.lab == 2: sub = "SECRET"
+	elif sim.L.lab == 1: sub = "LAB"
+	hud.show_card(nm, sub)
 	audio.moon_home = _moon_home(nm)
 	hud.moon_home = audio.moon_home
 
@@ -229,10 +259,13 @@ func _rebuild() -> void:
 	level.build(sim)
 	backdrop.build(level, "%s/%d" % [sim.L.name, sim.room])
 	actors.build(sim)
+	hazards.build(sim)
+	bosses.build(sim)
 	fx.clear()
 	fx.lh = sim.lh
 	fx.level = level
-	lights.set_mode(["sky", "cave", "dark"][clampi(level.cave, 0, 2)])
+	var night: bool = sim.L.gimroom[sim.room] == Sim.GR_NIGHT if sim.room < sim.L.gimroom.size() else false
+	lights.set_mode("night" if night and level.cave == 0 else ["sky", "cave", "dark"][clampi(level.cave, 0, 2)])
 	built_room = sim.room
 	sim.dirty_all = false
 	sim.dirty.clear()
@@ -243,6 +276,7 @@ func _snap() -> void:   # no interpolation across a cut
 	prev_hero = Vector2(sim.hx, sim.hy) / 256.0
 	prev_cam = Vector2(sim.cxf, sim.cyf) / 256.0
 	actors.snapshot()
+	bosses.snapshot()
 
 
 func _title() -> void:
@@ -275,9 +309,30 @@ func _level_select() -> void:
 		var note := ""
 		if _cleared(L.name): note = "★"
 		if L.moons.size(): note += "  ☾ %d/%d" % [got, L.moons.size()]
+		if L.cl.sg and L.name in progress.secrets: note += "  ⚑"
+		if L.cl.pc and L.name in progress.cards: note += "  ✉"
 		entries.append(["level:%d" % i, "%d  %s" % [i + 1, L.name.to_upper()], open, note])
 		open = open and _cleared(L.name)
+	for i in range(sim.NLV, lv.levels.size()):   # labs, and secret levels once their exit is found
+		var L: Dictionary = lv.levels[i]
+		if L.lab == 2:
+			var p := _cl_parent(i)
+			if p < 0 or not (lv.levels[p].name in progress.secrets):
+				continue
+		var tag := "SECRET" if L.lab == 2 else "LAB"
+		entries.append(["level:%d" % i, "%s  %s" % [tag, L.name.to_upper()], true, "★" if _cleared(L.name) else ""])
 	menu.open("levels", "LEVEL SELECT", entries, _next_level())
+
+
+func _cl_parent(l: int) -> int:   # collect_ui.h: the level whose secret exit leads to secret level l
+	var p: String = lv.levels[l].cl.secretof
+	if p.length() and p[0] >= "1" and p[0] <= "9":
+		var i := p.to_int() - 1
+		return i if i < sim.NLV else -1
+	for i in sim.NLV:
+		if lv.levels[i].name.to_lower() == p.to_lower():
+			return i
+	return -1
 
 
 func _pause() -> void:
@@ -322,6 +377,17 @@ func _on_menu(id: String) -> void:
 				mode = "play"
 
 
+var secret_exit := false
+
+
+func _secret_next() -> bool:   # a secret exit leads on to its secret level
+	for i in range(sim.NLV, lv.levels.size()):
+		if lv.levels[i].lab == 2 and _cl_parent(i) == sim.lvl:
+			start_level(i)
+			return true
+	return false
+
+
 func _finished() -> void:
 	var nm: String = sim.L.name
 	if not _cleared(nm):
@@ -329,7 +395,7 @@ func _finished() -> void:
 	_save_progress()
 	if not replay.is_empty():
 		return
-	if sim.lvl + 1 < sim.NLV:
+	if sim.lvl + 1 < sim.NLV and (not secret_exit or not _secret_next()):
 		start_level(sim.lvl + 1)
 	else:
 		_title()
@@ -368,6 +434,7 @@ func _step() -> void:
 		audio.director(sim, [], mode, 1.0 / 60.0)
 		return
 	actors.snapshot()
+	bosses.snapshot()
 	prev_hero = Vector2(sim.hx, sim.hy) / 256.0
 	prev_cam = Vector2(sim.cxf, sim.cyf) / 256.0
 	var k := 0
@@ -393,10 +460,27 @@ func _after_tick(quiet: bool) -> void:
 			"flag":
 				var nm: String = sim.L.name
 				progress.moons[nm] = _moon_home(nm) | sim.wd.moongot
+				secret_exit = sim.clsecretnow != 0
+				if secret_exit and sim.cl_record(sim.lvl) and not (nm in progress.secrets):
+					progress.secrets.append(nm)
+					hud.show_card("SECRET EXIT FOUND", "")
+			"postcard":
+				var nm: String = sim.L.name
+				if not (nm in progress.cards):
+					progress.cards.append(nm)
+					_save_progress()
+				hud.show_card("POSTCARD!", nm.to_upper())
+			"bossstart":
+				var b = sim.bz[e[1]]
+				hud.show_card(Sim.BOSSTITLE[b.kind] if b.kind else Sim.MINITITLE[b.mini], "BOSS" if b.kind else "MINI-BOSS")
+			"bosshurt", "bosswin":
+				cam.punch = 1.0
 			"pound":
 				cam.punch = 1.0
 		level.on_event(e)
 		actors.on_event(e)
+		hazards.on_event(e)
+		bosses.on_event(e)
 		if not quiet:
 			fx.on_event(e)
 		hero.on_event(e, sim)
@@ -466,6 +550,8 @@ func _frame(alpha: float, dt: float) -> void:
 	cam.follow(center, sim.shake, dt)
 	level.update(dt)
 	actors.update(alpha, dt)
+	hazards.update(alpha, dt)
+	bosses.update(alpha, dt)
 	fx.update(dt)
 	backdrop.update(dt)
 	lights.lantern.position = hero.position + Vector3(0, 1.4, 2.2)
