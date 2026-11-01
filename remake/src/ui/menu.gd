@@ -13,6 +13,7 @@ var logo_sub: Label
 var title_l: Label
 var hint: Label
 var list: VBoxContainer
+var panel: Panel
 var items: Array = []     # [id, text, enabled, note]
 var sel := 0
 var page := ""
@@ -42,6 +43,15 @@ func _ready() -> void:
 	logo_sub.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
 	title_l = _label(80, root)
 	_place(title_l, 0.5, 0, -700, 110, 700, 220)
+	panel = Panel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.07, 0.07, 0.14, 0.55)
+	sb.set_corner_radius_all(28)
+	sb.border_color = Color(1, 1, 1, 0.12)
+	sb.set_border_width_all(3)
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(panel)
 	list = VBoxContainer.new()
 	_place(list, 0.5, 0.5, -600, -60, 600, 440)
 	list.add_theme_constant_override("separation", 6)
@@ -89,7 +99,11 @@ func open(p: String, title: String, entries: Array, at := 0) -> void:
 	title_l.visible = not is_title
 	title_l.text = title
 	dim.color = Color(0.05, 0.05, 0.1, 0.15 if is_title else 0.6)
-	_place(list, 0.5, 0.5, -600, 40 if is_title else -170, 600, 440)
+	var top := 40 if is_title else -170
+	_place(list, 0.5, 0.5, -600, top, 600, 440)
+	var rows := mini(entries.size(), ROWS)
+	var pw := 560 if is_title else 1100
+	_place(panel, 0.5, 0.5, -pw / 2, top - 24, pw / 2, top + rows * 74 + 20)
 	hint.text = "Jump or Enter: choose      Esc or cap: back" if p != "title" else "Arrows move · Z jump · X / C cap · Esc pause"
 	root.visible = true
 	_rebuild()

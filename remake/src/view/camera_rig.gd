@@ -5,7 +5,7 @@ extends Camera3D
 
 const FOV := 30.0
 const PITCH := 7.0
-const VIEW_H := 15.0   # tiles visible top to bottom on the play plane (the C game shows 18)
+const VIEW_H := 16.0   # tiles visible top to bottom on the play plane (the C game shows 18)
 var dist := 0.0
 var t := 0.0
 var punch := 0.0       # an extra kick from the view (landing a ground pound, a boss hit)
@@ -25,6 +25,6 @@ func follow(center: Vector3, shake: int, dt: float) -> void:
 	var s := float(shake * shake) / 30.0 * 0.06 + punch * 0.25
 	var off := Vector3(sin(t * 57.0) * s * 0.5, sin(t * 71.0 + 1.0) * s, 0)
 	var p := deg_to_rad(PITCH)
-	var target := center + Vector3(0, 0.4, 0) + off
+	var target := center + off
 	var pos := target + Vector3(0, sin(p) * dist, cos(p) * dist)
 	look_at_from_position(pos, target, Vector3.UP)

@@ -8,6 +8,7 @@
 #   --out DIR             where the screenshots go
 #   --frames N            with --replay: quit after N steps
 #   --assets DIR          the levels, music and sounds (default: ../assets)
+#   --snap SECONDS        save a screenshot (to --out) after this long and quit
 extends Node
 
 const Levels := preload("res://src/sim/levels.gd")
@@ -42,13 +43,13 @@ var hud
 var menu
 var audio
 var pad
+var blob: Decal
 var mode := "title"        # title, play, pause
 var prev_hero := Vector2.ZERO
 var prev_cam := Vector2.ZERO
 var built_room := -1
 var progress := {"cleared": [], "moons": {}}
 var title_t := 0.0
-var focus := Vector3.ZERO
 # a recorded route driving the game (tests and screenshots)
 var replay := PackedInt32Array()
 var shots := {}
@@ -56,6 +57,7 @@ var out_dir := "/tmp"
 var frames := -1
 var steps := 0
 var start_level_arg := -1
+var snap := -1.0
 
 
 func _ready() -> void:
@@ -82,6 +84,8 @@ func _ready() -> void:
 	world.add_child(level)
 	hero = Hatrick.new()
 	world.add_child(hero)
+	blob = _blob_shadow()
+	world.add_child(blob)
 	actors = Actors.new()
 	world.add_child(actors)
 	fx = Fx.new()
@@ -122,6 +126,7 @@ func _args() -> void:
 			"--out": out_dir = v; i += 1
 			"--frames": frames = v.to_int(); i += 1
 			"--assets": assets = v; i += 1
+			"--snap": snap = v.to_float(); i += 1
 		i += 1
 
 
@@ -148,6 +153,26 @@ static func _read_tas(path: String) -> PackedInt32Array:
 		for j in p[0].to_int():
 			out.append(k)
 	return out
+
+
+# A soft round shadow straight under Hatrick, so jumps read against the ground and blocks.
+static func _blob_shadow() -> Decal:
+	var d := Decal.new()
+	d.size = Vector3(0.95, 12.0, 0.95)
+	var g := Gradient.new()
+	g.set_color(0, Color(0.05, 0.05, 0.12, 0.6))
+	g.set_color(1, Color(0.05, 0.05, 0.12, 0.0))
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(1.0, 0.5)
+	t.width = 64
+	t.height = 64
+	d.texture_albedo = t
+	d.upper_fade = 0.05
+	d.lower_fade = 0.6
+	return d
 
 
 func _fatal(msg: String) -> void:
@@ -202,7 +227,7 @@ func _rebuild() -> void:
 	fx.clear()
 	fx.lh = sim.lh
 	fx.level = level
-	lights.set_mode("cave" if level.cave else "sky")
+	lights.set_mode(["sky", "cave", "dark"][clampi(level.cave, 0, 2)])
 	built_room = sim.room
 	sim.dirty_all = false
 	sim.dirty.clear()
@@ -401,21 +426,29 @@ func _process(dt: float) -> void:
 	hero.animate(sim, Vector3((hp.x + 3.0) / 8.0, lh - (hp.y + 11.0) / 8.0, 0.0), alpha, dt)
 	var cc := prev_cam.lerp(Vector2(sim.cxf, sim.cyf) / 256.0, alpha)
 	var center := Vector3((cc.x + Sim.W / 2.0) / 8.0, lh - (cc.y + Sim.H / 2.0) / 8.0, 0.0)
-	# The view is a little closer than the C game's: shrink its framing toward Hatrick, so he keeps
-	# his place on screen and the view never shows beyond what the C camera would.
-	if sim.st != Sim.DEAD:
-		focus = hero.position + Vector3(0, 0.7, 0)
-	center = focus + (center - focus) * (cam.VIEW_H / 18.0)
+	# The view is a little closer than the C game's (16 tiles tall instead of 18) and sits a
+	# little lower, so the front of the ground shows: it gives up the top of the C framing, where
+	# its camera band never lets Hatrick go.
+	center.y -= (18.0 - cam.VIEW_H) * 0.5 + 0.6
 	if mode == "title":
 		title_t += dt
-		center += Vector3(6.0 + sin(title_t * 0.3) * 0.5, 0.6, 0.0)
+		center.x = hero.position.x + 4.5 + sin(title_t * 0.3) * 0.5
 	cam.follow(center, sim.shake, dt)
 	level.update(dt)
 	actors.update(alpha, dt)
 	fx.update(dt)
 	backdrop.update(dt)
 	lights.lantern.position = hero.position + Vector3(0, 1.4, 2.2)
+	blob.position = hero.position + Vector3(0, 0.08 - blob.size.y * 0.5, 0)
+	blob.visible = sim.st != Sim.TUBE and sim.st != Sim.DEAD
 	hud.update(sim, dt, cam.unproject_position(hero.global_position + Vector3(0, 0.7, 0)))
+	if snap >= 0.0:
+		snap -= dt
+		if snap < 0.0:
+			await RenderingServer.frame_post_draw
+			DirAccess.make_dir_recursive_absolute(out_dir)
+			get_viewport().get_texture().get_image().save_png(out_dir.path_join("snap.png"))
+			get_tree().quit()
 	if not replay.is_empty():
 		if shots.has(steps):
 			await RenderingServer.frame_post_draw

@@ -41,9 +41,9 @@ func _ready() -> void:
 	env.adjustment_contrast = 1.04
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	env.fog_depth_begin = 38.0
-	env.fog_depth_end = 140.0
-	env.fog_depth_curve = 1.2
+	env.fog_depth_begin = 30.0
+	env.fog_depth_end = 190.0
+	env.fog_depth_curve = 0.8
 	env.fog_sky_affect = 0.0
 	we.environment = env
 	add_child(we)
@@ -79,9 +79,9 @@ func set_mode(m: String) -> void:
 			sky_mat.sun_angle_max = 1.0
 			sun.light_energy = 0.35 if m == "cave" else 0.08
 			sun.light_color = Color(0.85, 0.75, 0.9)
-			env.ambient_light_energy = 0.5 if m == "cave" else 0.2
+			env.ambient_light_energy = 0.7 if m == "cave" else 0.25
 			env.fog_light_color = Color(0.1, 0.07, 0.07)
-			env.fog_density = 0.02
+			env.fog_density = 0.3
 			lantern.light_energy = 1.8 if m == "cave" else 2.6
 		"night":
 			sky_mat.sky_top_color = Color(0.05, 0.08, 0.2)
@@ -102,6 +102,6 @@ func set_mode(m: String) -> void:
 			sun.light_color = Color(1.0, 0.96, 0.88)
 			env.ambient_light_energy = 0.75
 			env.ambient_light_sky_contribution = 1.0
-			env.fog_light_color = Color(0.72, 0.85, 0.98)
-			env.fog_density = 0.01
+			env.fog_light_color = Color(0.74, 0.86, 0.98)
+			env.fog_density = 0.55
 			lantern.light_energy = 0.0

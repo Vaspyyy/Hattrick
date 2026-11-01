@@ -23,8 +23,8 @@ void fragment() {
 	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.0);
 	vec3 c = mix(albedo.rgb, edge.rgb, f * 0.8);
 	ALBEDO = c;
-	METALLIC = 0.35;
-	ROUGHNESS = 0.3;
+	METALLIC = 0.0;
+	ROUGHNESS = 0.25;
 	SPECULAR = 0.7;
 	EMISSION = albedo.rgb * glow + vec3(1.0, 0.85, 0.4) * f * 0.6;
 	ALPHA = alpha;

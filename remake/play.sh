@@ -48,6 +48,8 @@ if [[ -z "$godot" ]]; then
 			exit 1
 		fi
 		(cd "$dir" && unzip -q -o "$tmp/$file")
+		rm -rf "$tmp"
+		trap - EXIT
 		chmod +x "$godot"
 	fi
 fi

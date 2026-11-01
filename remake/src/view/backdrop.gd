@@ -6,6 +6,7 @@ extends Node3D
 const Meshes := preload("res://src/view/meshes.gd")
 const Mats := preload("res://src/view/mats.gd")
 const TERRAIN := preload("res://shaders/terrain.gdshader")
+const FLOOR := -4.0   # the land behind lies lower than the level: pits look like drops
 
 var clouds: Array = []
 var rng := RandomNumberGenerator.new()
@@ -48,8 +49,8 @@ func _sky(lv) -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(x1 - x0 + 200.0, 300.0)
 	meadow.mesh = pm
-	meadow.position = Vector3((x0 + x1) * 0.5, 0.0, -153.5)
-	meadow.material_override = _soft(Color(0.36, 0.62, 0.3))
+	meadow.position = Vector3((x0 + x1) * 0.5, FLOOR, -150.0 - 4.0)
+	meadow.material_override = _soft(Color(0.42, 0.64, 0.38))
 	add_child(meadow)
 	# far mountains: hazy blue-green domes on the horizon
 	var x := x0 - 40.0
@@ -58,7 +59,7 @@ func _sky(lv) -> void:
 		var h := rng.randf_range(16.0, 30.0)
 		var hill := MeshInstance3D.new()
 		hill.mesh = Meshes.ellipsoid(Vector3(r, h, r * 0.6), 28, 14)
-		hill.position = Vector3(x, -h * 0.25, -150.0 + rng.randf_range(-10, 10))
+		hill.position = Vector3(x, FLOOR - h * 0.25, -150.0 + rng.randf_range(-10, 10))
 		hill.material_override = _soft(Color(0.42, 0.62, 0.66).lerp(Color(0.5, 0.66, 0.78), rng.randf()))
 		hill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(hill)
@@ -71,7 +72,7 @@ func _sky(lv) -> void:
 		var z := -62.0 + rng.randf_range(-8, 8)
 		var hill := MeshInstance3D.new()
 		hill.mesh = Meshes.ellipsoid(Vector3(r, h, r * 0.7), 28, 14)
-		var y := -h * rng.randf_range(0.35, 0.55)
+		var y := FLOOR - h * rng.randf_range(0.2, 0.45)
 		hill.position = Vector3(x, y, z)
 		hill.material_override = _soft(Color(0.38, 0.66, 0.32).lerp(Color(0.52, 0.72, 0.36), rng.randf()))
 		hill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -83,12 +84,18 @@ func _sky(lv) -> void:
 	# a loose wood on the meadow between the level and the hills
 	x = x0
 	while x < x1:
-		var z := rng.randf_range(-24.0, -10.0)
-		if rng.randf() < 0.75:
-			_tree(Vector3(x, 0.0, z), rng.randf_range(3.0, 5.5), false, true)
+		var z := rng.randf_range(-44.0, -28.0)
+		if rng.randf() < 0.7:
+			for j in rng.randi_range(1, 3):
+				_tree(Vector3(x + j * 2.2, FLOOR, z - j * 1.5), rng.randf_range(3.5, 6.0), false, true)
 		else:
-			_bush(Vector3(x, 0.0, z), rng.randf_range(1.6, 2.6), false)
-		x += rng.randf_range(2.0, 6.0)
+			_bush(Vector3(x, FLOOR, z), rng.randf_range(2.0, 3.0), false)
+		x += rng.randf_range(6.0, 16.0)
+	# low bushes and tufts scattered on the near meadow
+	x = x0
+	while x < x1:
+		_bush(Vector3(x, FLOOR, rng.randf_range(-22.0, -7.0)), rng.randf_range(0.8, 1.6), false)
+		x += rng.randf_range(3.0, 9.0)
 	# bushes, trees and flowers along the back of the ground's grass
 	for tx in range(-10, lw + 10):
 		var ty := _top(lv, tx)
@@ -98,9 +105,9 @@ func _sky(lv) -> void:
 		var y := float(lh - ty)
 		if roll < 0.14:
 			_bush(Vector3(tx + rng.randf(), y, rng.randf_range(-2.6, -2.0)), rng.randf_range(0.7, 1.2), true)
-		elif roll < 0.2:
-			_tree(Vector3(tx + 0.5, y, rng.randf_range(-2.6, -2.2)), rng.randf_range(2.6, 3.6), true, false)
-		elif roll < 0.32:
+		elif roll < 0.16:
+			_tree(Vector3(tx + 0.5, y, rng.randf_range(-2.8, -2.5)), rng.randf_range(1.9, 2.5), true, false)
+		elif roll < 0.3:
 			_flowers(Vector3(tx + rng.randf(), y, rng.randf_range(-1.8, -0.9)))
 	# clouds
 	x = x0
@@ -201,9 +208,10 @@ func _cave(lv) -> void:
 	var m := ShaderMaterial.new()
 	m.shader = TERRAIN
 	m.set_shader_parameter("grass_on", 0.0)
-	m.set_shader_parameter("dirt_hi", Color(0.33, 0.27, 0.27))
-	m.set_shader_parameter("dirt_lo", Color(0.18, 0.15, 0.16))
-	m.set_shader_parameter("pebble", Color(0.4, 0.35, 0.34))
+	m.set_shader_parameter("dirt_hi", Color(0.40, 0.33, 0.33))
+	m.set_shader_parameter("dirt_lo", Color(0.24, 0.20, 0.21))
+	m.set_shader_parameter("pebble", Color(0.46, 0.40, 0.38))
+	m.set_shader_parameter("pattern_scale", 0.4)
 	wall.material_override = m
 	add_child(wall)
 	# stalactites under the ceiling, stalagmites on the floor

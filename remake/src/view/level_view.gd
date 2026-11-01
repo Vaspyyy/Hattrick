@@ -36,6 +36,8 @@ var checks: Array = []     # [Check, Node3D post, MeshInstance3D banner, MeshIns
 var moons: Array = []      # [index, Node3D]
 var flag_root: Node3D
 var pennant: Node3D
+var flag_top := 0.0
+var win_t := 0.0
 var moon_home := 0      # moon coins brought home on an earlier visit: drawn pale
 var t := 0.0
 var M := {}             # materials
@@ -65,8 +67,8 @@ func _init() -> void:
 	M.pole = Mats.pbr(Color(0.88, 0.9, 0.94), 0.25, 0.6)
 	M.gold = Mats.pbr(Color(1.0, 0.8, 0.28), 0.25, 0.85, Color(0.25, 0.16, 0.02))
 	M.grey_knob = Mats.pbr(Color(0.7, 0.74, 0.8), 0.35, 0.5)
-	M.coin = _coin_mat(Color(1.0, 0.76, 0.2), Color(0.8, 0.45, 0.06), 0.16)
-	M.coin_star = _coin_mat(Color(1.0, 0.92, 0.55), Color(0.95, 0.6, 0.1), 0.3)
+	M.coin = _coin_mat(Color(1.0, 0.74, 0.12), Color(0.85, 0.42, 0.02), 0.35)
+	M.coin_star = _coin_mat(Color(1.0, 0.93, 0.5), Color(1.0, 0.65, 0.1), 0.5)
 	M.water = _water_mat()
 
 
@@ -149,13 +151,26 @@ func _ground_slope(tx: int, ty: int) -> bool:
 
 func _groundish(tx: int, ty: int) -> bool:
 	var t := _t(tx, ty)
-	return t == 1 or ((t == 8 or t == 9) and _ground_slope(tx, ty))
+	return _slab(tx, ty) or ((t == 8 or t == 9) and _ground_slope(tx, ty))
+
+
+# Ground, or a tube's body going down into the ground: the slab covers it there, so a tube seems
+# to sink into the earth instead of standing in a slot.
+func _slab(tx: int, ty: int) -> bool:
+	var t := _t(tx, ty)
+	if t == 1:
+		return true
+	if t == 10 or t == 11:
+		for d in [-2, -1, 1, 2]:
+			if _t(tx + d, ty) == 1:
+				return true
+	return false
 
 
 # The grass surface above a cell of ground, at the column's left or right edge.
 func _surf(tx: int, ty: int, right: bool) -> float:
 	var yy := ty
-	while yy - 1 >= 0 and _t(tx, yy - 1) == 1:
+	while yy - 1 >= 0 and _slab(tx, yy - 1):
 		yy -= 1
 	if yy - 1 >= 0:
 		var a := _t(tx, yy - 1)
@@ -243,7 +258,7 @@ func _build_ground() -> void:
 	var any := false
 	for ty in lh:
 		for tx in range(-MARGIN, lw + MARGIN):
-			if _t(tx, ty) != 1:
+			if not _slab(tx, ty):
 				continue
 			any = true
 			var x0 := float(tx)
@@ -791,8 +806,11 @@ func _build_flag() -> void:
 	flag_root = Node3D.new()
 	dyn_root.add_child(flag_root)
 	var x: float = sim.gx + 0.5
-	var top := float(lh - sim.gy)
 	var bottom: float = float(lh) - sim.gb / 8.0
+	# at least 7 tiles tall, even where the F stands right on the ground (the sim's flag catches
+	# Hatrick anywhere above it, so the taller pole is fair)
+	var top := maxf(float(lh - sim.gy), bottom + 7.0)
+	flag_top = top
 	var pole := MeshInstance3D.new()
 	pole.mesh = Meshes.cylinder(0.085, 0.085, top - bottom, 12)
 	pole.position = Vector3(x, (top + bottom) * 0.5, -0.2)
@@ -903,5 +921,9 @@ func update(dt: float) -> void:
 		n.position = cell_pos(mm.x, mm.y) + Vector3(0, sin(t * 2.2 + m[0]) * 0.1, 0)
 		n.get_node("spin").rotation.y = sin(t * 1.4 + m[0]) * 0.7
 	if pennant:
-		var py: float = sim.flagy if sim.st == Sim.WIN else sim.gy * 8 + 1
-		pennant.position.y = lh - py / 8.0
+		if sim.st == Sim.WIN:   # the pennant comes down with Hatrick, at least as fast as it can fall
+			win_t += dt
+			pennant.position.y = minf(flag_top, maxf(lh - sim.flagy / 8.0, flag_top - win_t * 9.0))
+		else:
+			win_t = 0.0
+			pennant.position.y = flag_top

@@ -11,6 +11,7 @@ uniform vec4 dirt_lo : source_color = vec4(0.50, 0.29, 0.14, 1.0);
 uniform vec4 pebble : source_color = vec4(0.86, 0.64, 0.38, 1.0);
 uniform float grass_on = 1.0;
 uniform float tint_ice = 0.0;
+uniform float pattern_scale = 1.0;
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -48,7 +49,7 @@ void fragment() {
 	vec3 col;
 	float depth = UV2.y;
 	// the face's own 2D coordinates: front faces use x/y, side faces z/y, the top x/z
-	vec2 fp = abs(wnrm.x) > 0.6 ? wpos.zy : wpos.xy;
+	vec2 fp = (abs(wnrm.x) > 0.6 ? wpos.zy : wpos.xy) * pattern_scale;
 	float wave = 0.28 + 0.07 * sin(wpos.x * 4.7 + wpos.z * 3.0) + 0.04 * sin(wpos.x * 11.3 + 1.7) + 0.06 * vnoise(vec2(wpos.x * 2.6 + wpos.z * 2.0, 3.0));
 	if (grass_on > 0.5 && UV2.x > 0.5) {
 		float n = vnoise(wpos.xz * vec2(1.7, 2.3));

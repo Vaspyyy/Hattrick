@@ -63,9 +63,9 @@ func _ready() -> void:
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(card)
 	card_sub = _label(38, HORIZONTAL_ALIGNMENT_CENTER, card)
-	_place(card_sub, 0.5, 0.5, -700, -128, 700, -78)
+	_place(card_sub, 0.5, 0.26, -700, -78, 700, -28)
 	card_l = _label(100, HORIZONTAL_ALIGNMENT_CENTER, card)
-	_place(card_l, 0.5, 0.5, -700, -88, 700, 40)
+	_place(card_l, 0.5, 0.26, -700, -42, 700, 78)
 	card_sub.add_theme_color_override("font_color", Color(1.0, 0.86, 0.4))
 	clear_l = _label(110, HORIZONTAL_ALIGNMENT_CENTER)
 	_place(clear_l, 0.5, 0.5, -700, -260, 700, -120)
@@ -142,8 +142,8 @@ func update(s, dt: float, screen_pos: Vector2) -> void:
 	# the level card
 	card_t += dt
 	var a := 0.0
-	if card_t < 2.6:
-		a = clampf(card_t / 0.25, 0.0, 1.0) * clampf((2.6 - card_t) / 0.4, 0.0, 1.0)
+	if card_t < 2.2:
+		a = clampf(card_t / 0.25, 0.0, 1.0) * clampf((2.2 - card_t) / 0.4, 0.0, 1.0)
 	card.modulate.a = a
 	card.visible = a > 0.0
 	card.position.y = (1.0 - clampf(card_t / 0.35, 0.0, 1.0)) * -40.0
@@ -230,9 +230,9 @@ func _draw_hud() -> void:
 	# the card's ribbon
 	if card.visible:
 		var vs := root.get_viewport_rect().size
-		var y := vs.y * 0.5 - 140 + card.position.y
+		var y := vs.y * 0.26 - 92 + card.position.y
 		var a := card.modulate.a
-		var w := vs.x * minf(card_t / 0.3, 1.0)
-		draw.draw_rect(Rect2(vs.x * 0.5 - w * 0.5, y, w, 200), Color(0.93, 0.37, 0.11, 0.88 * a))
-		draw.draw_rect(Rect2(vs.x * 0.5 - w * 0.5, y + 200, w, 10), Color(0.6, 0.18, 0.05, 0.8 * a))
-		draw.draw_rect(Rect2(vs.x * 0.5 - w * 0.5, y - 10, w, 10), Color(1.0, 0.75, 0.3, 0.8 * a))
+		var rw := vs.x * minf(card_t / 0.3, 1.0)
+		draw.draw_rect(Rect2(vs.x * 0.5 - rw * 0.5, y, rw, 180), Color(0.93, 0.37, 0.11, 0.88 * a))
+		draw.draw_rect(Rect2(vs.x * 0.5 - rw * 0.5, y + 180, rw, 10), Color(0.6, 0.18, 0.05, 0.8 * a))
+		draw.draw_rect(Rect2(vs.x * 0.5 - rw * 0.5, y - 10, rw, 10), Color(1.0, 0.75, 0.3, 0.8 * a))
